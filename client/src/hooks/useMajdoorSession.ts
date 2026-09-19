@@ -1,0 +1,381 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { io, Socket } from "socket.io-client";
+import {
+  SERVER_URL,
+  ICE_SERVERS,
+  MEDIA_CONSTRAINTS,
+  MAX_VIDEO_BITRATE,
+} from "../constants/config";
+
+export type Status = "idle" | "waiting" | "connecting" | "connected";
+
+export interface ChatMessage {
+  id: string;
+  from: "me" | "them";
+  text: string;
+  ts: number; // epoch millis when the message was created/received
+}
+
+interface SignalPayload {
+  description?: RTCSessionDescriptionInit;
+  candidate?: RTCIceCandidateInit;
+}
+
+/**
+ * Encapsulates the full ITMajdoor session lifecycle:
+ *  - Socket.IO connection to the signaling server
+ *  - Matchmaking (join / next / partner left)
+ *  - WebRTC peer connection setup and teardown
+ *  - Local + remote media streams
+ *  - Text chat
+ *
+ * The UI just calls join()/next()/stop()/sendMessage() and reads the returned state.
+ */
+export function useMajdoorSession() {
+  const [status, setStatus] = useState<Status>("idle");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // Camera and mic start ON; the user can mute/disable from the controls.
+  const [micOn, setMicOn] = useState(true);
+  const [camOn, setCamOn] = useState(true);
+  // Tracked in state so a useEffect can (re)attach it to the <video> element
+  // once that element is actually mounted (it isn't while on the Landing page).
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  const socketRef = useRef<Socket | null>(null);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  // True once the user has asked to join; used to (re)emit "join" as soon as
+  // the socket is actually connected, and to guard against double-joining.
+  const wantJoinRef = useRef(false);
+  const hasJoinedRef = useRef(false);
+  // ICE candidates can arrive before the remote description is set; buffer them.
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+
+  // --- Media -------------------------------------------------------------
+
+  const ensureLocalStream = useCallback(async () => {
+    if (localStreamRef.current) return localStreamRef.current;
+    const stream = await navigator.mediaDevices.getUserMedia(
+      MEDIA_CONSTRAINTS
+    );
+    // Tracks are enabled by default, so the user joins with mic and camera on.
+    localStreamRef.current = stream;
+    // Trigger the attach effect; the <video> element may not be mounted yet.
+    setLocalStream(stream);
+    return stream;
+  }, []);
+
+  // Attach (or re-attach) the local stream to the local <video> whenever either
+  // the stream or the mounted element changes. This handles the case where the
+  // stream is acquired on the Landing page before the video element exists.
+  useEffect(() => {
+    const el = localVideoRef.current;
+    if (el && localStream && el.srcObject !== localStream) {
+      el.srcObject = localStream;
+    }
+  }, [localStream, status]);
+
+  // --- WebRTC peer connection -------------------------------------------
+
+  const teardownPeer = useCallback(() => {
+    if (pcRef.current) {
+      pcRef.current.ontrack = null;
+      pcRef.current.onicecandidate = null;
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+    pendingCandidatesRef.current = [];
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const createPeer = useCallback(async () => {
+    const stream = await ensureLocalStream();
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+
+    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+    // Raise the encoder's max bitrate for the video sender so 720p looks sharp.
+    // Browsers otherwise cap video quite low, which makes the picture blurry.
+    const videoSender = pc
+      .getSenders()
+      .find((s) => s.track?.kind === "video");
+    if (videoSender) {
+      const params = videoSender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) {
+        params.encodings = [{}];
+      }
+      params.encodings[0].maxBitrate = MAX_VIDEO_BITRATE;
+      params.encodings[0].maxFramerate = 30;
+      try {
+        await videoSender.setParameters(params);
+      } catch (err) {
+        console.warn("Could not raise video bitrate", err);
+      }
+    }
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        socketRef.current?.emit("signal", { candidate: event.candidate });
+      }
+    };
+
+    pc.ontrack = (event) => {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = event.streams[0];
+      }
+    };
+
+    // Drive the UI status from the ACTUAL peer connection state, not the
+    // socket match. This is the fix for "shows Connected but isn't".
+    pc.onconnectionstatechange = () => {
+      // Ignore events from a peer connection we've already replaced/torn down,
+      // otherwise a stale "closed" event can re-queue us and desync the
+      // server-side partner mapping (which breaks chat routing).
+      if (pcRef.current !== pc) return;
+
+      switch (pc.connectionState) {
+        case "connected":
+          setStatus("connected");
+          break;
+        case "connecting":
+          setStatus("connecting");
+          break;
+        case "failed":
+          // Only a genuine terminal failure re-queues us. We do NOT act on
+          // "closed" (that's usually our own teardown during next/stop) to
+          // avoid emitting a stray "next" that re-pairs us on the server.
+          teardownPeer();
+          setStatus("waiting");
+          setMessages([]);
+          socketRef.current?.emit("next");
+          break;
+        // "disconnected" can be transient; wait for it to recover or fail.
+        default:
+          break;
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === "failed") {
+        // Try an ICE restart before giving up (initiator side re-offers).
+        try {
+          pc.restartIce?.();
+        } catch {
+          /* not supported everywhere; connectionstatechange will handle it */
+        }
+      }
+    };
+
+    pcRef.current = pc;
+    return pc;
+  }, [ensureLocalStream, teardownPeer]);
+
+  const flushPendingCandidates = useCallback(async () => {
+    const pc = pcRef.current;
+    if (!pc) return;
+    for (const candidate of pendingCandidatesRef.current) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.error("Failed to add buffered ICE candidate", err);
+      }
+    }
+    pendingCandidatesRef.current = [];
+  }, []);
+
+  // --- Signaling handlers ------------------------------------------------
+
+  const handleMatched = useCallback(
+    async ({ initiator }: { initiator: boolean }) => {
+      // Matched on the server, but the WebRTC media path isn't up yet.
+      // Real "connected" is set by pc.onconnectionstatechange.
+      setStatus("connecting");
+      setMessages([]);
+      teardownPeer();
+      const pc = await createPeer();
+
+      if (initiator) {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socketRef.current?.emit("signal", { description: offer });
+      }
+    },
+    [createPeer, teardownPeer]
+  );
+
+  const handleSignal = useCallback(
+    async ({ description, candidate }: SignalPayload) => {
+      const pc = pcRef.current;
+      if (!pc) return;
+
+      if (description) {
+        await pc.setRemoteDescription(new RTCSessionDescription(description));
+        await flushPendingCandidates();
+        if (description.type === "offer") {
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socketRef.current?.emit("signal", { description: answer });
+        }
+      } else if (candidate) {
+        if (pc.remoteDescription && pc.remoteDescription.type) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (err) {
+            console.error("Failed to add ICE candidate", err);
+          }
+        } else {
+          pendingCandidatesRef.current.push(candidate);
+        }
+      }
+    },
+    [flushPendingCandidates]
+  );
+
+  // --- Socket lifecycle --------------------------------------------------
+
+  // Keep the latest handlers in refs so the socket effect can mount ONCE and
+  // never tear down / recreate the socket when these callbacks change identity.
+  // Re-registering listeners (or reconnecting) mid-negotiation was dropping the
+  // WebRTC connection, leaving the UI stuck on a fake "connected" state.
+  const handleMatchedRef = useRef(handleMatched);
+  const handleSignalRef = useRef(handleSignal);
+  const teardownPeerRef = useRef(teardownPeer);
+  useEffect(() => {
+    handleMatchedRef.current = handleMatched;
+    handleSignalRef.current = handleSignal;
+    teardownPeerRef.current = teardownPeer;
+  }, [handleMatched, handleSignal, teardownPeer]);
+
+  useEffect(() => {
+    // Reuse an existing socket across React StrictMode's dev double-mount.
+    // Creating/destroying sockets (each with its own server-side pairing) was
+    // the cause of tabs getting tangled with their own throwaway sockets
+    // instead of pairing with each other.
+    if (socketRef.current) return;
+
+    const socket = io(SERVER_URL, { autoConnect: true });
+    socketRef.current = socket;
+
+    // Emit "join" only once the socket is truly connected, and only if the
+    // user asked to. Guarded so we never join twice on one connection.
+    socket.on("connect", () => {
+      if (wantJoinRef.current && !hasJoinedRef.current) {
+        hasJoinedRef.current = true;
+        socket.emit("join");
+      }
+    });
+
+    socket.on("waiting", () => setStatus("waiting"));
+    socket.on("matched", (payload) => handleMatchedRef.current(payload));
+    socket.on("signal", (payload) => handleSignalRef.current(payload));
+    socket.on("chat:message", ({ text }: { text: string }) => {
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), from: "them", text, ts: Date.now() },
+      ]);
+    });
+    socket.on("partner:left", () => {
+      teardownPeerRef.current();
+      setStatus("waiting");
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          from: "them",
+          text: "— IT Majdoor left. Finding another IT Majdoor… —",
+          ts: Date.now(),
+        },
+      ]);
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+      hasJoinedRef.current = false;
+      teardownPeerRef.current();
+    };
+  }, []);
+
+  // --- Public actions ----------------------------------------------------
+
+  const join = useCallback(async () => {
+    await ensureLocalStream();
+    setStatus("waiting");
+    wantJoinRef.current = true;
+    const socket = socketRef.current;
+    // If the socket is already connected, join now; otherwise the socket's
+    // "connect" handler will emit "join" as soon as it connects.
+    if (socket?.connected && !hasJoinedRef.current) {
+      hasJoinedRef.current = true;
+      socket.emit("join");
+    }
+  }, [ensureLocalStream]);
+
+  const next = useCallback(() => {
+    teardownPeer();
+    setMessages([]);
+    setStatus("waiting");
+    socketRef.current?.emit("next");
+  }, [teardownPeer]);
+
+  const stop = useCallback(() => {
+    // Leave entirely: tell the server to drop us (without requeueing),
+    // release camera/mic, reset state, and return to the landing page.
+    wantJoinRef.current = false;
+    hasJoinedRef.current = false;
+    socketRef.current?.emit("leave");
+    teardownPeer();
+    localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    localStreamRef.current = null;
+    setLocalStream(null);
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    setMessages([]);
+    setMicOn(true);
+    setCamOn(true);
+    setStatus("idle");
+  }, [teardownPeer]);
+
+  const sendMessage = useCallback((text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    socketRef.current?.emit("chat:message", { text: trimmed });
+    setMessages((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), from: "me", text: trimmed, ts: Date.now() },
+    ]);
+  }, []);
+
+  const toggleMic = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    stream.getAudioTracks().forEach((t) => (t.enabled = !t.enabled));
+    setMicOn((prev) => !prev);
+  }, []);
+
+  const toggleCam = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    stream.getVideoTracks().forEach((t) => (t.enabled = !t.enabled));
+    setCamOn((prev) => !prev);
+  }, []);
+
+  return {
+    status,
+    messages,
+    micOn,
+    camOn,
+    localVideoRef,
+    remoteVideoRef,
+    join,
+    next,
+    stop,
+    sendMessage,
+    toggleMic,
+    toggleCam,
+  };
+}

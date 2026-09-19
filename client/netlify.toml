@@ -1,0 +1,19 @@
+# Netlify configuration for the ITMajdoor frontend.
+# Set the site's "base directory" to `client` in the Netlify UI, or deploy from
+# this folder directly. The build publishes the Vite `dist` output.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# SPA fallback: the app is a single-page app, so route everything to index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Security + caching headers.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

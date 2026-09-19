@@ -1,0 +1,20 @@
+# Render blueprint for the ITMajdoor backend (Socket.IO signaling server).
+# Netlify can't host a persistent WebSocket server, so the backend runs here.
+#
+# Deploy: push this repo to GitHub, then in Render click "New +" -> "Blueprint"
+# and point it at the repo. Render reads this file and provisions the service.
+services:
+  - type: web
+    name: itmajdoor-server
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      # Set this to your Netlify site URL after the frontend is deployed.
+      # Multiple origins can be comma-separated. *.netlify.app is auto-allowed.
+      - key: CLIENT_ORIGIN
+        value: https://YOUR-SITE.netlify.app
+      # Render provides PORT automatically; the server reads process.env.PORT.
