@@ -42,6 +42,98 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", ...matchmaker.stats() });
 });
 
+// --- ICE servers (STUN/TURN) -------------------------------------------
+// The client fetches its ICE servers from here on startup. This keeps any
+// TURN secret on the server instead of baking it into the browser bundle.
+//
+// Supported providers (set env vars on Render):
+//
+//   Twilio (recommended): dynamic credentials via API
+//     TWILIO_ACCOUNT_SID
+//     TWILIO_AUTH_TOKEN
+//
+//   Self-hosted coturn (or any static TURN): fixed credentials
+//     TURN_URLS         comma-separated, e.g.
+//                       "turn:1.2.3.4:3478,turn:1.2.3.4:3478?transport=tcp"
+//     TURN_USERNAME
+//     TURN_CREDENTIAL
+//
+// Without any of these, we fall back to public STUN + the free OpenRelay TURN.
+const FALLBACK_ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  {
+    urls: "turn:openrelay.metered.ca:80",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+  {
+    urls: "turn:openrelay.metered.ca:443",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+  {
+    urls: "turn:openrelay.metered.ca:443?transport=tcp",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+];
+
+// Build static ICE servers from a self-hosted / fixed-credential TURN server.
+function staticTurnServers() {
+  const urls = process.env.TURN_URLS;
+  const username = process.env.TURN_USERNAME;
+  const credential = process.env.TURN_CREDENTIAL;
+  if (!urls || !username || !credential) return null;
+  return [
+    { urls: "stun:stun.l.google.com:19302" },
+    {
+      urls: urls.split(",").map((u) => u.trim()),
+      username,
+      credential,
+    },
+  ];
+}
+
+// Fetch short-lived TURN credentials from Twilio's Network Traversal Service.
+async function twilioIceServers() {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  if (!sid || !token) return null;
+
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Tokens.json`;
+  const auth = Buffer.from(`${sid}:${token}`).toString("base64");
+  const upstream = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Basic ${auth}` },
+  });
+  if (!upstream.ok) throw new Error(`Twilio responded ${upstream.status}`);
+  const data = await upstream.json();
+  // Twilio returns { ice_servers: [{ url|urls, username, credential }, ...] }.
+  return data.ice_servers.map((s) => ({
+    urls: s.urls || s.url,
+    username: s.username,
+    credential: s.credential,
+  }));
+}
+
+app.get("/ice-servers", async (_req, res) => {
+  // 1) Static/self-hosted TURN if configured.
+  const staticServers = staticTurnServers();
+  if (staticServers) return res.json({ iceServers: staticServers });
+
+  // 2) Twilio dynamic credentials if configured.
+  try {
+    const twilio = await twilioIceServers();
+    if (twilio) return res.json({ iceServers: twilio });
+  } catch (err) {
+    console.error("Twilio TURN fetch failed:", err.message);
+  }
+
+  // 3) Fallback: public STUN + OpenRelay.
+  res.json({ iceServers: FALLBACK_ICE_SERVERS });
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: corsOptions,

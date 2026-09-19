@@ -3,6 +3,7 @@ import { io, Socket } from "socket.io-client";
 import {
   SERVER_URL,
   ICE_SERVERS,
+  fetchIceServers,
   MEDIA_CONSTRAINTS,
   MAX_VIDEO_BITRATE,
 } from "../constants/config";
@@ -47,6 +48,8 @@ export function useMajdoorSession() {
   const socketRef = useRef<Socket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  // Cached ICE servers fetched from the backend (may include TURN creds).
+  const iceServersRef = useRef<RTCIceServer[]>(ICE_SERVERS);
   // True once the user has asked to join; used to (re)emit "join" as soon as
   // the socket is actually connected, and to guard against double-joining.
   const wantJoinRef = useRef(false);
@@ -95,7 +98,7 @@ export function useMajdoorSession() {
 
   const createPeer = useCallback(async () => {
     const stream = await ensureLocalStream();
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
 
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
@@ -120,6 +123,10 @@ export function useMajdoorSession() {
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        // Candidate "typ" tells us the path: host (local), srflx (via STUN),
+        // relay (via TURN). If we never see "relay" and the connection fails,
+        // it means we need a TURN server.
+        console.log("[webrtc] local candidate:", event.candidate.type, event.candidate.candidate);
         socketRef.current?.emit("signal", { candidate: event.candidate });
       }
     };
@@ -133,6 +140,7 @@ export function useMajdoorSession() {
     // Drive the UI status from the ACTUAL peer connection state, not the
     // socket match. This is the fix for "shows Connected but isn't".
     pc.onconnectionstatechange = () => {
+      console.log("[webrtc] connectionState:", pc.connectionState);
       // Ignore events from a peer connection we've already replaced/torn down,
       // otherwise a stale "closed" event can re-queue us and desync the
       // server-side partner mapping (which breaks chat routing).
@@ -161,6 +169,7 @@ export function useMajdoorSession() {
     };
 
     pc.oniceconnectionstatechange = () => {
+      console.log("[webrtc] iceConnectionState:", pc.iceConnectionState);
       if (pc.iceConnectionState === "failed") {
         // Try an ICE restart before giving up (initiator side re-offers).
         try {
@@ -305,6 +314,9 @@ export function useMajdoorSession() {
 
   const join = useCallback(async () => {
     await ensureLocalStream();
+    // Fetch ICE servers (with any TURN credentials) from the backend before
+    // matchmaking, so they're ready when the peer connection is created.
+    iceServersRef.current = await fetchIceServers();
     setStatus("waiting");
     wantJoinRef.current = true;
     const socket = socketRef.current;
