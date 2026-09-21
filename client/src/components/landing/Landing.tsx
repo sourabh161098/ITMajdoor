@@ -38,7 +38,7 @@ export function Landing({
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/80 px-6 py-4 backdrop-blur">
         <span className="flex items-center gap-2 text-2xl font-extrabold tracking-tight">
           <Laptop className="h-6 w-6 text-accent" strokeWidth={2.4} />
-          IT<span className="text-accent">Majdoor</span>
+          IT<span className="text-accent-text">Majdoor</span>
         </span>
         <div className="flex items-center gap-2">
           <Button
@@ -111,7 +111,7 @@ export function Landing({
               <span className="grid h-12 w-12 place-items-center rounded-xl bg-accent/10 text-accent transition-colors group-hover:bg-accent group-hover:text-white">
                 <f.icon size={24} strokeWidth={2.2} />
               </span>
-              <h3 className="mt-4 text-lg font-bold">{f.title}</h3>
+              <h2 className="mt-4 text-lg font-bold">{f.title}</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">{f.desc}</p>
             </div>
           ))}
@@ -126,7 +126,7 @@ export function Landing({
           confidential info.
           <button
             onClick={onOpenGuidelines}
-            className="font-semibold text-accent underline-offset-2 hover:underline"
+            className="font-semibold text-accent-text underline underline-offset-2 hover:no-underline"
           >
             Read the guidelines
           </button>

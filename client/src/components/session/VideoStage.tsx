@@ -1,22 +1,36 @@
 import type { RefObject } from "react";
 import { Loader2, VideoOff, MicOff } from "lucide-react";
-import type { Status } from "../../hooks/useMajdoorSession";
+import type { Status, ConnectionQuality } from "../../constants/session";
 
 interface VideoStageProps {
   status: Status;
+  quality: ConnectionQuality;
   micOn: boolean;
   camOn: boolean;
   localVideoRef: RefObject<HTMLVideoElement>;
   remoteVideoRef: RefObject<HTMLVideoElement>;
 }
 
+// Signal-dot color + tooltip for each quality level.
+const QUALITY_META: Record<
+  ConnectionQuality,
+  { color: string; label: string }
+> = {
+  good: { color: "bg-emerald-500", label: "Good connection" },
+  ok: { color: "bg-amber-500", label: "Okay connection" },
+  poor: { color: "bg-red-500", label: "Poor connection" },
+  unknown: { color: "bg-white/40", label: "Measuring connection…" },
+};
+
 export function VideoStage({
   status,
+  quality,
   micOn,
   camOn,
   localVideoRef,
   remoteVideoRef,
 }: VideoStageProps) {
+  const q = QUALITY_META[quality];
   return (
     <div className="relative min-h-0 flex-1 bg-neutral-950">
       {/* Remote (partner) video fills the stage */}
@@ -45,8 +59,17 @@ export function VideoStage({
         </div>
       )}
 
-      {/* Partner label */}
-      <span className="absolute left-4 top-4 rounded-lg bg-black/40 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/10 backdrop-blur-md">
+      {/* Partner label with a live connection-quality dot */}
+      <span className="absolute left-4 top-4 flex items-center gap-2 rounded-lg bg-black/40 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/10 backdrop-blur-md">
+        {status === "connected" && (
+          <span
+            title={q.label}
+            aria-label={q.label}
+            className={`h-2 w-2 shrink-0 rounded-full ${q.color} ${
+              quality === "poor" ? "animate-pulse" : ""
+            }`}
+          />
+        )}
         Partner
       </span>
 

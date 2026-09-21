@@ -8,6 +8,8 @@ export default {
         accent: {
           DEFAULT: "#ff8a00",
           hover: "#e67c00",
+          // Theme-aware accent tuned for use as text (WCAG AA contrast).
+          text: "var(--accent-text)",
         },
       },
       fontFamily: {

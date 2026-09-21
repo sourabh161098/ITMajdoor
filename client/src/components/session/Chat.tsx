@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { MessageSquare, SendHorizontal, Hand, X } from "lucide-react";
-import type { ChatMessage } from "../../hooks/useMajdoorSession";
+import type { ChatMessage } from "../../constants/session";
+import { TYPING_IDLE_MS, MAX_MESSAGE_LENGTH } from "../../constants/session";
 import { IconButton } from "../ui/IconButton";
 
 interface ChatProps {
@@ -63,7 +64,7 @@ export function Chat({
     typingStopTimer.current = setTimeout(() => {
       isTypingRef.current = false;
       onTyping(false);
-    }, 1500);
+    }, TYPING_IDLE_MS);
   };
 
   // Clean up the idle timer on unmount.
@@ -185,7 +186,7 @@ export function Chat({
           onChange={(e) => handleDraftChange(e.target.value)}
           placeholder={disabled ? "Waiting for a partner…" : "Type a message"}
           disabled={disabled}
-          maxLength={2000}
+          maxLength={MAX_MESSAGE_LENGTH}
           className="flex-1 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2.5 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-50"
         />
         <IconButton

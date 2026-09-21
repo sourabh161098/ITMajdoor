@@ -5,6 +5,13 @@ current architecture (no database, in-memory server, WebRTC + Socket.IO).
 
 ---
 
+## ✅ Completed
+
+- **Connection quality indicator** — green/amber/red dot in front of the
+  "Partner" badge, sampled from WebRTC `getStats()` every 3s.
+
+---
+
 ## Top 5 picks (best bang for the buck)
 
 1. **Interest tags / topic match** — biggest engagement lever.
@@ -24,8 +31,9 @@ current architecture (no database, in-memory server, WebRTC + Socket.IO).
       re-pairing with the same socket for the session.
 - [ ] **Screen share** — one button, `getDisplayMedia()` + `replaceTrack()`.
       Great for sharing a stack trace / code.
-- [ ] **Connection quality indicator** — read WebRTC `getStats()` and show a
-      signal dot (good / ok / poor).
+- [x] **Connection quality indicator** — ✅ Done. Polls WebRTC `getStats()`
+      every 3s (packet loss + RTT) and shows a green/amber/red dot in front of
+      the "Partner" badge.
 - [ ] **Copy chat transcript** — button to copy the conversation before it's
       gone (nothing is stored otherwise).
 - [ ] **Keyboard shortcuts** — Esc = Stop, N = Next, M = mute, etc.

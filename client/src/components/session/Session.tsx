@@ -34,6 +34,7 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
     status,
     messages,
     partnerTyping,
+    quality,
     micOn,
     camOn,
     localVideoRef,
@@ -92,19 +93,19 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-[var(--bg)] text-[var(--text)]">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-[var(--bg)] text-[var(--text)]">
       {/* Top bar */}
       <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-5 py-3">
         <span className="flex items-center gap-2 text-xl font-extrabold tracking-tight">
           <Laptop className="h-5 w-5 text-accent" strokeWidth={2.4} />
-          IT<span className="text-accent">Majdoor</span>
+          IT<span className="text-accent-text">Majdoor</span>
         </span>
         <div className="flex items-center gap-3">
           <span
             className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
               connected
                 ? "bg-emerald-500/15 text-emerald-500"
-                : "bg-accent/15 text-accent"
+                : "bg-accent/15 text-accent-text"
             }`}
           >
             <span
@@ -131,6 +132,7 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
       <main className="relative flex min-h-0 flex-1 flex-row overflow-hidden">
         <VideoStage
           status={status}
+          quality={quality}
           micOn={micOn}
           camOn={camOn}
           localVideoRef={localVideoRef}

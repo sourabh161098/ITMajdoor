@@ -28,7 +28,7 @@ const items: AccordionItem[] = [
           about flaky tests, argue about tabs vs spaces, or just wave hi.
         </p>
         <p className="font-semibold text-[var(--text)]">
-          It is <span className="text-accent">not</span> a professional network,
+          It is <span className="text-accent-text">not</span> a professional network,
           a recruiting tool, or a place to do business. Keep it light.
         </p>
       </div>
@@ -179,7 +179,7 @@ export function Guidelines({ onBack, theme, onToggleTheme }: GuidelinesProps) {
           className="flex items-center gap-2 text-2xl font-extrabold tracking-tight transition hover:opacity-80"
         >
           <Laptop className="h-6 w-6 text-accent" strokeWidth={2.4} />
-          IT<span className="text-accent">Majdoor</span>
+          IT<span className="text-accent-text">Majdoor</span>
         </button>
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" icon={ArrowLeft} onClick={onBack}>
@@ -198,7 +198,7 @@ export function Guidelines({ onBack, theme, onToggleTheme }: GuidelinesProps) {
       <main className="relative z-10 mx-auto w-full max-w-3xl flex-1 px-6 py-12">
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
-            Guidelines &amp; <span className="text-accent">Disclaimer</span>
+            Guidelines &amp; <span className="text-accent-text">Disclaimer</span>
           </h1>
           <p className="mt-4 text-lg text-[var(--muted)]">
             The short version: have fun, be kind, and never share anything that

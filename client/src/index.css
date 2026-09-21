@@ -8,8 +8,11 @@
   --surface: #ffffff;
   --surface-2: #eceef1;
   --text: #1a1d24;
-  --muted: #5f6572;
+  --muted: #545a66;
   --accent: #ff8a00;
+  /* Darker accent for use as TEXT on light backgrounds (meets WCAG AA). The
+     bright --accent orange fails contrast as small text on white. */
+  --accent-text: #b45309;
   --primary: #3b82f6;
   --danger: #ef4444;
   --border: #d9dce1;
@@ -22,8 +25,10 @@
   --surface: #1a1d24;
   --surface-2: #23272f;
   --text: #e8eaed;
-  --muted: #9aa0a6;
+  --muted: #a7adb4;
   --accent: #ff8a00;
+  /* On dark surfaces the bright orange has plenty of contrast. */
+  --accent-text: #ff9d29;
   --primary: #3b82f6;
   --danger: #ef4444;
   --border: #3a3f47;

@@ -7,20 +7,19 @@ import {
   MEDIA_CONSTRAINTS,
   MAX_VIDEO_BITRATE,
 } from "../constants/config";
+import {
+  QUALITY_POLL_MS,
+  QUALITY_THRESHOLDS,
+} from "../constants/session";
+import type {
+  Status,
+  ConnectionQuality,
+  ChatMessage,
+  SignalPayload,
+} from "../constants/session";
 
-export type Status = "idle" | "waiting" | "connecting" | "connected";
-
-export interface ChatMessage {
-  id: string;
-  from: "me" | "them";
-  text: string;
-  ts: number; // epoch millis when the message was created/received
-}
-
-interface SignalPayload {
-  description?: RTCSessionDescriptionInit;
-  candidate?: RTCIceCandidateInit;
-}
+// Re-export the session types so existing imports from this hook keep working.
+export type { Status, ConnectionQuality, ChatMessage, SignalPayload };
 
 /**
  * Encapsulates the full ITMajdoor session lifecycle:
@@ -37,6 +36,8 @@ export function useMajdoorSession() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   // True while the partner is actively typing (driven by "typing" events).
   const [partnerTyping, setPartnerTyping] = useState(false);
+  // Live connection quality, sampled from WebRTC stats.
+  const [quality, setQuality] = useState<ConnectionQuality>("unknown");
   // Camera and mic start ON; the user can mute/disable from the controls.
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
@@ -319,6 +320,78 @@ export function useMajdoorSession() {
     };
   }, []);
 
+  // --- Connection quality (WebRTC getStats) ------------------------------
+
+  // While connected, sample the peer connection every 3s and derive a simple
+  // good / ok / poor rating from inbound packet loss and round-trip time.
+  useEffect(() => {
+    if (status !== "connected") {
+      setQuality("unknown");
+      return;
+    }
+
+    let prevLost = 0;
+    let prevReceived = 0;
+
+    const sample = async () => {
+      const pc = pcRef.current;
+      if (!pc) return;
+      try {
+        const stats = await pc.getStats();
+        let lost = 0;
+        let received = 0;
+        let rtt = 0;
+
+        stats.forEach((report) => {
+          if (report.type === "inbound-rtp" && !report.isRemote) {
+            lost += report.packetsLost ?? 0;
+            received += report.packetsReceived ?? 0;
+          }
+          if (
+            report.type === "candidate-pair" &&
+            report.state === "succeeded" &&
+            typeof report.currentRoundTripTime === "number"
+          ) {
+            rtt = report.currentRoundTripTime; // seconds
+          }
+        });
+
+        // Packet loss over the last interval only (delta), as a fraction.
+        const dLost = lost - prevLost;
+        const dReceived = received - prevReceived;
+        prevLost = lost;
+        prevReceived = received;
+        const lossRate =
+          dReceived + dLost > 0 ? dLost / (dReceived + dLost) : 0;
+        const rttMs = rtt * 1000;
+
+        // Thresholds: poor if lossy or laggy; good if clean and snappy.
+        let next: ConnectionQuality;
+        if (
+          lossRate > QUALITY_THRESHOLDS.poor.loss ||
+          rttMs > QUALITY_THRESHOLDS.poor.rttMs
+        ) {
+          next = "poor";
+        } else if (
+          lossRate > QUALITY_THRESHOLDS.ok.loss ||
+          rttMs > QUALITY_THRESHOLDS.ok.rttMs
+        ) {
+          next = "ok";
+        } else {
+          next = "good";
+        }
+        setQuality(next);
+      } catch {
+        /* getStats can throw during teardown; ignore */
+      }
+    };
+
+    // Sample immediately, then on an interval.
+    sample();
+    const id = setInterval(sample, QUALITY_POLL_MS);
+    return () => clearInterval(id);
+  }, [status]);
+
   // --- Public actions ----------------------------------------------------
 
   const join = useCallback(async () => {
@@ -396,6 +469,7 @@ export function useMajdoorSession() {
     status,
     messages,
     partnerTyping,
+    quality,
     micOn,
     camOn,
     localVideoRef,
