@@ -35,6 +35,8 @@ interface SignalPayload {
 export function useMajdoorSession() {
   const [status, setStatus] = useState<Status>("idle");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // True while the partner is actively typing (driven by "typing" events).
+  const [partnerTyping, setPartnerTyping] = useState(false);
   // Camera and mic start ON; the user can mute/disable from the controls.
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
@@ -205,6 +207,7 @@ export function useMajdoorSession() {
       // Real "connected" is set by pc.onconnectionstatechange.
       setStatus("connecting");
       setMessages([]);
+      setPartnerTyping(false);
       teardownPeer();
       const pc = await createPeer();
 
@@ -283,13 +286,19 @@ export function useMajdoorSession() {
     socket.on("matched", (payload) => handleMatchedRef.current(payload));
     socket.on("signal", (payload) => handleSignalRef.current(payload));
     socket.on("chat:message", ({ text }: { text: string }) => {
+      // A received message means they've stopped typing and sent it.
+      setPartnerTyping(false);
       setMessages((prev) => [
         ...prev,
         { id: crypto.randomUUID(), from: "them", text, ts: Date.now() },
       ]);
     });
+    socket.on("typing", ({ typing }: { typing: boolean }) => {
+      setPartnerTyping(!!typing);
+    });
     socket.on("partner:left", () => {
       teardownPeerRef.current();
+      setPartnerTyping(false);
       setStatus("waiting");
       setMessages((prev) => [
         ...prev,
@@ -356,10 +365,17 @@ export function useMajdoorSession() {
     const trimmed = text.trim();
     if (!trimmed) return;
     socketRef.current?.emit("chat:message", { text: trimmed });
+    // Sending implies we're no longer typing.
+    socketRef.current?.emit("typing", { typing: false });
     setMessages((prev) => [
       ...prev,
       { id: crypto.randomUUID(), from: "me", text: trimmed, ts: Date.now() },
     ]);
+  }, []);
+
+  // Emit our own typing state to the partner. Called by the chat input.
+  const setTyping = useCallback((typing: boolean) => {
+    socketRef.current?.emit("typing", { typing });
   }, []);
 
   const toggleMic = useCallback(() => {
@@ -379,6 +395,7 @@ export function useMajdoorSession() {
   return {
     status,
     messages,
+    partnerTyping,
     micOn,
     camOn,
     localVideoRef,
@@ -387,6 +404,7 @@ export function useMajdoorSession() {
     next,
     stop,
     sendMessage,
+    setTyping,
     toggleMic,
     toggleCam,
   };

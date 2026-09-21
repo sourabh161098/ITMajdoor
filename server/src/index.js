@@ -146,6 +146,7 @@ const io = new Server(server, {
  *   "join"                       -> ask to be matched with a random waiting user
  *   "next"                       -> leave current partner and rejoin the queue
  *   "chat:message" { text }      -> send a text message to current partner
+ *   "typing" { typing }          -> relay a typing indicator to current partner
  *   "signal" { description|candidate } -> relay a WebRTC signal to current partner
  *
  * Server -> Client:
@@ -153,6 +154,7 @@ const io = new Server(server, {
  *   "matched" { initiator }      -> you have a partner; initiator decides who makes the WebRTC offer
  *   "partner:left"               -> your partner disconnected or skipped
  *   "chat:message" { text }      -> an incoming text message from your partner
+ *   "typing" { typing }          -> your partner started/stopped typing
  *   "signal" { ... }             -> an incoming WebRTC signal from your partner
  */
 
@@ -211,6 +213,12 @@ io.on("connection", (socket) => {
     if (partnerId && typeof text === "string" && text.trim()) {
       io.to(partnerId).emit("chat:message", { text: text.slice(0, 2000) });
     }
+  });
+
+  // Relay a lightweight typing indicator to the current partner.
+  socket.on("typing", ({ typing } = {}) => {
+    const partnerId = matchmaker.getPartner(socket.id);
+    if (partnerId) io.to(partnerId).emit("typing", { typing: !!typing });
   });
 
   // Relay WebRTC signaling (SDP offers/answers and ICE candidates) untouched.

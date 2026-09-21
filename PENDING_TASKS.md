@@ -1,0 +1,59 @@
+# ITMajdoor — Pending Tasks & Feature Ideas
+
+A backlog of features we could build next, grouped by effort. Realistic for the
+current architecture (no database, in-memory server, WebRTC + Socket.IO).
+
+---
+
+## Top 5 picks (best bang for the buck)
+
+1. **Interest tags / topic match** — biggest engagement lever.
+2. **Screen share** — IT-perfect, easy to add.
+3. **Online / waiting count** — makes the app feel alive, nearly free.
+4. **Report / block** — safety, needed before real traffic.
+5. **Text-only vs video mode** — unlocks camera-shy users.
+
+---
+
+## Quick wins (small, high impact)
+
+- [ ] **Online / waiting count** — show "N majdoors online" on landing + live
+      "N waiting" in-session. Server already tracks this (`matchmaker.stats()`
+      feeds `/health`); emit it over Socket.IO.
+- [ ] **Report / block button** — report emits an event; block skips
+      re-pairing with the same socket for the session.
+- [ ] **Screen share** — one button, `getDisplayMedia()` + `replaceTrack()`.
+      Great for sharing a stack trace / code.
+- [ ] **Connection quality indicator** — read WebRTC `getStats()` and show a
+      signal dot (good / ok / poor).
+- [ ] **Copy chat transcript** — button to copy the conversation before it's
+      gone (nothing is stored otherwise).
+- [ ] **Keyboard shortcuts** — Esc = Stop, N = Next, M = mute, etc.
+
+## Medium effort (differentiators)
+
+- [ ] **Interest tags / topic match** — pick tags (frontend, DevOps, AI,
+      job-hunting) and match on shared interests. Biggest engagement lever.
+- [ ] **"Text only" vs "Video" mode** — lobby choice; matches respect the mode.
+- [ ] **Emoji reactions / quick GIFs** — floating 👍😂🔥 reactions over video.
+- [ ] **Reconnect on network drop** — restore the same session on Wi-Fi↔data
+      flips instead of dumping to the queue.
+- [ ] **Nickname (ephemeral)** — optional session display name, no account.
+      "Partner" → "Priya (Frontend)".
+
+## Bigger / stretch
+
+- [ ] **Shared code snippet pad** — tiny collaborative text area for pasting
+      code during the chat, over the existing peer data channel.
+- [ ] **Language / region preference** — match by preferred language.
+- [ ] **Waiting-room mini-game or fun fact** — something to look at while
+      "Finding another IT Majdoor…".
+- [ ] **PWA / installable** — add to home screen, native-like on mobile.
+
+## Operational / housekeeping
+
+- [ ] **Rotate the leaked Twilio Auth Token** in the Twilio console, then update
+      `TWILIO_AUTH_TOKEN` on Render. (Token was shared in plaintext during dev.)
+- [ ] **Netlify Git auto-deploy** — connect the GitHub repo (base dir `client`)
+      so `git push` auto-deploys the frontend.
+- [ ] Rate limiting / abuse controls on the server.

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Mic,
   MicOff,
@@ -9,6 +9,7 @@ import {
   Sun,
   Moon,
   Laptop,
+  MessageSquare,
 } from "lucide-react";
 import { useMajdoorSession } from "../../hooks/useMajdoorSession";
 import type { Theme } from "../../hooks/useTheme";
@@ -32,6 +33,7 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
   const {
     status,
     messages,
+    partnerTyping,
     micOn,
     camOn,
     localVideoRef,
@@ -40,9 +42,42 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
     next,
     stop,
     sendMessage,
+    setTyping,
     toggleMic,
     toggleCam,
   } = useMajdoorSession();
+
+  // Chat panel is hidden by default; the chat button in the controls toggles it.
+  const [chatOpen, setChatOpen] = useState(false);
+
+  // Unread badge: counts ONLY messages received from the partner ("them")
+  // while the chat panel is closed. Your own sent messages never count, and
+  // opening the chat marks everything read (resets to 0). We track how many
+  // received messages we've "seen" so far so the badge is accurate even after
+  // opening/closing repeatedly.
+  const [unreadCount, setUnreadCount] = useState(0);
+  const seenReceivedRef = useRef(0);
+
+  const receivedCount = messages.filter((m) => m.from === "them").length;
+
+  useEffect(() => {
+    if (chatOpen) {
+      // Chat is open → everything received is considered read.
+      seenReceivedRef.current = receivedCount;
+      setUnreadCount(0);
+    } else {
+      // Chat is closed → anything received beyond what we've seen is unread.
+      setUnreadCount(receivedCount - seenReceivedRef.current);
+    }
+  }, [receivedCount, chatOpen]);
+
+  // A fresh partner resets the conversation, so clear the unread tracker too.
+  useEffect(() => {
+    if (status !== "connected") {
+      seenReceivedRef.current = 0;
+      setUnreadCount(0);
+    }
+  }, [status]);
 
   // Kick off matchmaking as soon as the session mounts.
   useEffect(() => {
@@ -92,8 +127,8 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
         </div>
       </header>
 
-      {/* Stage: video + chat */}
-      <main className="flex min-h-0 flex-1 flex-col md:flex-row">
+      {/* Stage: video always fills; chat slides in as a panel when opened. */}
+      <main className="relative flex min-h-0 flex-1 flex-row overflow-hidden">
         <VideoStage
           status={status}
           micOn={micOn}
@@ -101,12 +136,20 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
           localVideoRef={localVideoRef}
           remoteVideoRef={remoteVideoRef}
         />
-        <Chat messages={messages} onSend={sendMessage} disabled={!connected} />
+        <Chat
+          messages={messages}
+          onSend={sendMessage}
+          disabled={!connected}
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+          partnerTyping={partnerTyping}
+          onTyping={setTyping}
+        />
       </main>
 
       {/* Controls */}
       <footer className="flex justify-center border-t border-[var(--border)] bg-[var(--surface)] px-5 py-4">
-        <div className="flex flex-nowrap items-center justify-center gap-2 rounded-2xl bg-[var(--bg)] px-4 py-3 shadow-inner sm:px-6">
+        <div className="flex flex-nowrap items-center justify-center gap-2 rounded-[3rem] bg-[var(--bg)] px-4 py-3 shadow-inner sm:px-6">
           <IconButton
             onClick={toggleMic}
             label={micOn ? "Mute microphone" : "Unmute microphone"}
@@ -119,6 +162,20 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
             variant={camOn ? "secondary" : "danger"}
             icon={camOn ? Video : VideoOff}
           />
+          {/* Chat toggle: shows/hides the chat panel. */}
+          <div className="relative">
+            <IconButton
+              onClick={() => setChatOpen((o) => !o)}
+              label={chatOpen ? "Hide chat" : "Show chat"}
+              variant={chatOpen ? "primary" : "secondary"}
+              icon={MessageSquare}
+            />
+            {!chatOpen && unreadCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-[var(--bg)]">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </div>
           <div className="mx-1 h-6 w-px bg-[var(--border)]" />
 
           {/* Always visible. Circular on small screens; a text label appears
@@ -127,19 +184,17 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
             onClick={next}
             aria-label="Next partner"
             title="Next partner"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-0 font-semibold text-white shadow-sm shadow-accent/25 transition-all hover:bg-accent-hover active:scale-95 lg:px-5"
+            className="grid h-11 w-11 place-items-center rounded-full bg-accent font-semibold text-white shadow-sm shadow-accent/25 transition-all hover:bg-accent-hover active:scale-95"
           >
-            <SkipForward size={19} strokeWidth={2.2} className="mx-3 lg:mx-0" />
-            <span className="hidden pr-1 text-sm lg:inline">Next</span>
+            <SkipForward size={19} strokeWidth={2.2} />
           </button>
           <button
             onClick={handleStop}
             aria-label="Stop and leave"
             title="Stop and leave"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-red-500 px-0 font-semibold text-white shadow-sm shadow-red-500/25 transition-all hover:bg-red-600 active:scale-95 lg:px-5"
+            className="grid h-11 w-11 place-items-center rounded-full bg-red-500 font-semibold text-white shadow-sm shadow-red-500/25 transition-all hover:bg-red-600 active:scale-95"
           >
-            <PhoneOff size={19} strokeWidth={2.2} className="mx-3 lg:mx-0" />
-            <span className="hidden pr-1 text-sm lg:inline">Stop</span>
+            <PhoneOff size={19} strokeWidth={2.2} />
           </button>
         </div>
       </footer>

@@ -162,7 +162,16 @@ const items: AccordionItem[] = [
 
 export function Guidelines({ onBack, theme, onToggleTheme }: GuidelinesProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text)]">
+    <div className="relative flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text)]">
+      {/* Ambient background glow (matches the landing page). Clipped in its own
+          fixed layer so it doesn't break the sticky header or cause scroll. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+      >
+        <div className="absolute left-1/2 top-[-10rem] h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-accent/20 blur-[120px]" />
+      </div>
+
       {/* Header */}
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/90 px-6 py-4 backdrop-blur">
         <button
@@ -186,7 +195,7 @@ export function Guidelines({ onBack, theme, onToggleTheme }: GuidelinesProps) {
       </header>
 
       {/* Body */}
-      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12">
+      <main className="relative z-10 mx-auto w-full max-w-3xl flex-1 px-6 py-12">
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
             Guidelines &amp; <span className="text-accent">Disclaimer</span>
@@ -211,7 +220,7 @@ export function Guidelines({ onBack, theme, onToggleTheme }: GuidelinesProps) {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-[var(--border)] bg-[var(--surface)] px-6 py-6 text-center text-sm text-[var(--muted)]">
+      <footer className="relative z-10 border-t border-[var(--border)] bg-[var(--surface)] px-6 py-6 text-center text-sm text-[var(--muted)]">
         <p>Play nice. What's shared here is your responsibility.</p>
         <p className="mt-1">© {new Date().getFullYear()} ITMajdoor</p>
       </footer>

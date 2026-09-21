@@ -1,4 +1,4 @@
-import { Shuffle, Video, MessageSquare, Sun, Moon, ArrowRight, AlertTriangle, Laptop } from "lucide-react";
+import { Shuffle, Video, MessageSquare, Sun, Moon, ArrowRight, AlertTriangle, Laptop, BookOpen } from "lucide-react";
 import type { Theme } from "../../hooks/useTheme";
 import { QuoteRotator } from "./QuoteRotator";
 import { Button } from "../ui/Button";
@@ -41,7 +41,13 @@ export function Landing({
           IT<span className="text-accent">Majdoor</span>
         </span>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={onOpenGuidelines}>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={BookOpen}
+            onClick={onOpenGuidelines}
+            className="rounded-full"
+          >
             Guidelines
           </Button>
           <IconButton
@@ -69,8 +75,8 @@ export function Landing({
           </span>
         </h1>
         <p className="mt-6 max-w-xl text-lg text-[var(--muted)] sm:text-xl">
-          Meet a random IT worker. Talk shop, vent about standups, or just say
-          hi. One click, one stranger, one conversation.
+          Get matched with a random IT worker for a quick video chat. Swap
+          stories, vent about work, or just say hi — no logins, no pressure.
         </p>
 
         <span className="mt-10 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-1.5 text-xs font-semibold text-[var(--muted)]">
