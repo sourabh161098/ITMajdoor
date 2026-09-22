@@ -4,7 +4,7 @@ import {
   SERVER_URL,
   ICE_SERVERS,
   fetchIceServers,
-  MEDIA_CONSTRAINTS,
+  getMediaConstraints,
   MAX_VIDEO_BITRATE,
 } from "../constants/config";
 import {
@@ -74,8 +74,10 @@ export function useMajdoorSession() {
 
   const ensureLocalStream = useCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current;
+    // Orientation-aware: portrait capture on phones so the video fills the tall
+    // area instead of being cropped to a tiny slice by object-cover.
     const stream = await navigator.mediaDevices.getUserMedia(
-      MEDIA_CONSTRAINTS
+      getMediaConstraints()
     );
     // Tracks are enabled by default, so the user joins with mic and camera on.
     localStreamRef.current = stream;

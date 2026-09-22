@@ -74,9 +74,46 @@ export async function fetchIceServers(): Promise<RTCIceServer[]> {
   return ICE_SERVERS;
 }
 
-// Media capture constraints. We ask for 720p @ 30fps as the target (with an
-// "ideal" hint so the browser falls back gracefully on weaker cameras), plus
-// standard audio processing for clearer voice.
+// Standard audio processing for clearer voice, shared across orientations.
+const AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+};
+
+/**
+ * Build camera/mic constraints for the current device orientation.
+ *
+ * The key detail: on a portrait phone we must request a PORTRAIT capture
+ * (taller than wide), otherwise the camera returns a wide 16:9 frame that gets
+ * heavily cropped by `object-cover` in the tall video area — showing only a
+ * tiny zoomed-in slice. On desktop (landscape) we request the usual 720p wide.
+ *
+ * We ask for 720p @ 30fps as the target with "ideal" hints so the browser
+ * falls back gracefully on weaker cameras.
+ */
+export function getMediaConstraints(): MediaStreamConstraints {
+  const isPortrait =
+    typeof window !== "undefined" &&
+    window.matchMedia("(orientation: portrait)").matches;
+
+  // Long/short edges of the target 720p frame.
+  const longEdge = { ideal: 1280, max: 1920 };
+  const shortEdge = { ideal: 720, max: 1080 };
+
+  return {
+    video: {
+      // Portrait: taller than wide. Landscape: wider than tall.
+      width: isPortrait ? shortEdge : longEdge,
+      height: isPortrait ? longEdge : shortEdge,
+      frameRate: { ideal: 30, max: 30 },
+      facingMode: "user",
+    },
+    audio: AUDIO_CONSTRAINTS,
+  };
+}
+
+// Back-compat default (landscape). Prefer getMediaConstraints() at capture time.
 export const MEDIA_CONSTRAINTS: MediaStreamConstraints = {
   video: {
     width: { ideal: 1280, max: 1920 },
@@ -84,11 +121,7 @@ export const MEDIA_CONSTRAINTS: MediaStreamConstraints = {
     frameRate: { ideal: 30, max: 30 },
     facingMode: "user",
   },
-  audio: {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
-  },
+  audio: AUDIO_CONSTRAINTS,
 };
 
 // Cap the outgoing video bitrate. Browsers default video fairly low, so we
