@@ -1,7 +1,6 @@
 import { ArrowLeft, Sun, Moon, AlertTriangle, Laptop } from "lucide-react";
 import type { Theme } from "../../hooks/useTheme";
 import { Accordion, type AccordionItem } from "./Accordion";
-import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 
 interface GuidelinesProps {
@@ -182,9 +181,13 @@ export function Guidelines({ onBack, theme, onToggleTheme }: GuidelinesProps) {
           IT<span className="text-accent-text">Majdoor</span>
         </button>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" icon={ArrowLeft} onClick={onBack}>
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:text-[var(--text)]"
+          >
+            <ArrowLeft size={15} strokeWidth={2.2} className="text-accent" />
             Back
-          </Button>
+          </button>
           <IconButton
             onClick={onToggleTheme}
             label="Toggle color theme"
