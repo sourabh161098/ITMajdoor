@@ -9,6 +9,12 @@ current architecture (no database, in-memory server, WebRTC + Socket.IO).
 
 - **Connection quality indicator** — green/amber/red dot in front of the
   "Partner" badge, sampled from WebRTC `getStats()` every 3s.
+- **Emoji reactions** — a smiley button opens a popover (👍😂🔥❤️👏😮); tapping
+  one floats the emoji slowly up over the *partner's* video (sender doesn't see
+  their own). Relayed via a `reaction` socket event.
+- **Friday mood headline** — on Friday after 2 PM the landing hero alternates
+  between "ITMajdoor" and "IT's Friday" every 5s (day-based, via
+  `constants/moodline.ts`).
 
 ---
 
@@ -43,7 +49,8 @@ current architecture (no database, in-memory server, WebRTC + Socket.IO).
 - [ ] **Interest tags / topic match** — pick tags (frontend, DevOps, AI,
       job-hunting) and match on shared interests. Biggest engagement lever.
 - [ ] **"Text only" vs "Video" mode** — lobby choice; matches respect the mode.
-- [ ] **Emoji reactions / quick GIFs** — floating 👍😂🔥 reactions over video.
+- [x] **Emoji reactions** — ✅ Done. Popover of emojis; floats over the
+      partner's video. (Quick GIFs skipped — needs a GIF API + picker.)
 - [ ] **Reconnect on network drop** — restore the same session on Wi-Fi↔data
       flips instead of dumping to the queue.
 - [ ] **Nickname (ephemeral)** — optional session display name, no account.

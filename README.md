@@ -218,6 +218,41 @@ See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for step-by-step instructions.
 
 ---
 
+## Hosting & scaling (free tiers)
+
+Video is peer-to-peer (WebRTC), so the video/audio streams flow **directly
+between the two browsers** and never go through our server. That keeps the
+backend light and cheap.
+
+### Netlify — frontend ([netlify.com](https://www.netlify.com))
+- Just serves the static site (HTML/JS/CSS) over a global CDN.
+- Free plan: **100 GB bandwidth/month**. Our bundle is tiny (~250 KB gzipped),
+  so this is effectively unlimited for our traffic — not a bottleneck.
+
+### Render — backend ([render.com](https://render.com))
+- Runs the Node + Socket.IO server (matchmaking + signaling relay).
+- Free instance: **512 MB RAM, 0.1 CPU**.
+- Realistically handles **~500 concurrent users** comfortably (a few hundred
+  live 1-on-1 calls), since it only relays tiny messages, not video.
+- **Cold start:** the free service sleeps after ~15 min of no traffic and takes
+  ~50–60s to wake, so the first user after a quiet period waits a bit.
+- This is our practical concurrency ceiling. A paid instance removes the sleep
+  and adds CPU for thousands of users.
+
+### Twilio TURN — video relay ([twilio.com](https://www.twilio.com))
+- Most calls connect directly peer-to-peer. But ~15–20% (mobile data, strict
+  corporate NATs) **can't**, and must relay their video through a TURN server.
+- We use Twilio for that. When a call relays, the **video does flow through
+  Twilio and is billed per GB** (roughly $0.40–0.80/GB).
+- So Twilio isn't a "how many users" limit — it's a **cost** limit. A few
+  long relayed video calls can quietly add up. Worth watching if traffic grows.
+
+**Summary:** Netlify is essentially free/unlimited, Render caps us at a few
+hundred concurrent users (and sleeps when idle), and Twilio is the thing to
+watch for cost, not capacity.
+
+---
+
 ## Possible next steps
 
 - Rate limiting / abuse controls and a report button.

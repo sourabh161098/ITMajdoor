@@ -28,11 +28,18 @@ export default {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-8px)" },
         },
+        "reaction-float": {
+          "0%": { opacity: "0", transform: "translateY(0) scale(0.6)" },
+          "10%": { opacity: "1", transform: "translateY(-8vh) scale(1.1)" },
+          "85%": { opacity: "1", transform: "translateY(-62vh) scale(1)" },
+          "100%": { opacity: "0", transform: "translateY(-72vh) scale(0.9)" },
+        },
       },
       animation: {
         "rise-in": "rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both",
         "gradient-pan": "gradient-pan 6s ease-in-out infinite",
         float: "float 3s ease-in-out infinite",
+        "reaction-float": "reaction-float 4s ease-out forwards",
       },
     },
   },

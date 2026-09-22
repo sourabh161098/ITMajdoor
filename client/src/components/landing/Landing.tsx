@@ -1,8 +1,14 @@
+import { useEffect, useState } from "react";
 import { Shuffle, Video, MessageSquare, Sun, Moon, ArrowRight, AlertTriangle, Laptop, BookOpen } from "lucide-react";
 import type { Theme } from "../../hooks/useTheme";
 import { QuoteRotator } from "./QuoteRotator";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
+import {
+  DEFAULT_HEADLINE,
+  HEADLINE_CYCLE_MS,
+  getHeroMood,
+} from "../../constants/moodline";
 
 interface LandingProps {
   onJoin: () => void;
@@ -23,6 +29,27 @@ export function Landing({
   onToggleTheme,
   onOpenGuidelines,
 }: LandingProps) {
+  // Day-of-week "mood" headline. On Friday afternoon it alternates between the
+  // brand name and the mood line every few seconds; otherwise it stays fixed.
+  // See constants/moodline.ts.
+  const [headline, setHeadline] = useState(() => getHeroMood().initial);
+
+  useEffect(() => {
+    const mood = getHeroMood();
+    setHeadline(mood.initial);
+    if (!mood.delayed) return;
+
+    // Toggle between the brand name and the mood line on a repeating timer.
+    const interval = setInterval(() => {
+      setHeadline((current) =>
+        current === mood.initial ? (mood.delayed as string) : mood.initial
+      );
+    }, HEADLINE_CYCLE_MS);
+    return () => clearInterval(interval);
+  }, []);
+
+  const isDefaultHeadline = headline === DEFAULT_HEADLINE;
+
   return (
     <div className="relative flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text)]">
       {/* Ambient background glow (clipped in its own layer so it doesn't
@@ -61,18 +88,30 @@ export function Landing({
 
       {/* Body / hero */}
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-        <h1 className="animate-rise-in flex items-center justify-center gap-3 bg-gradient-to-br from-[var(--text)] to-[var(--muted)] bg-clip-text text-6xl font-black leading-none tracking-tighter text-transparent sm:text-7xl md:text-8xl">
-          {/* Laptop — the tool of every IT Majdoor, sized to match the text */}
+        {/* Laptop + text float together as one unit (animate-float on the whole
+            heading) so they always move in the same direction, in sync. */}
+        <h1 className="animate-rise-in flex animate-float items-center justify-center gap-3 text-6xl font-black leading-[1.15] tracking-tighter text-[var(--text)] sm:text-7xl md:text-8xl">
+          {/* Laptop — the tool of every IT Majdoor, sized to match the text. */}
           <Laptop
-            className="animate-float h-16 w-16 shrink-0 text-accent sm:h-20 sm:w-20 md:h-28 md:w-28"
+            className="h-16 w-16 shrink-0 text-accent sm:h-20 sm:w-20 md:h-28 md:w-28"
             strokeWidth={2}
           />
-          <span>
-            IT
-            <span className="animate-gradient-pan bg-gradient-to-r from-accent via-amber-400 to-orange-600 bg-[length:200%_auto] bg-clip-text text-transparent">
-              Majdoor
+          {isDefaultHeadline ? (
+            <span>
+              <span className="text-[var(--text)]">IT</span>
+              <span className="text-accent">Majdoor</span>
             </span>
-          </span>
+          ) : (
+            // Mood line (e.g. "IT's Friday"): first word white, the rest accent.
+            <span key={headline} className="whitespace-nowrap">
+              <span className="text-[var(--text)]">
+                {headline.split(" ")[0]}
+              </span>{" "}
+              <span className="text-accent">
+                {headline.split(" ").slice(1).join(" ")}
+              </span>
+            </span>
+          )}
         </h1>
         <p className="mt-6 max-w-xl text-lg text-[var(--muted)] sm:text-xl">
           Get matched with a random IT worker for a quick video chat. Swap

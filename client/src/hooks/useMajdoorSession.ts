@@ -10,16 +10,24 @@ import {
 import {
   QUALITY_POLL_MS,
   QUALITY_THRESHOLDS,
+  REACTION_LIFETIME_MS,
 } from "../constants/session";
 import type {
   Status,
   ConnectionQuality,
   ChatMessage,
   SignalPayload,
+  FloatingReaction,
 } from "../constants/session";
 
 // Re-export the session types so existing imports from this hook keep working.
-export type { Status, ConnectionQuality, ChatMessage, SignalPayload };
+export type {
+  Status,
+  ConnectionQuality,
+  ChatMessage,
+  SignalPayload,
+  FloatingReaction,
+};
 
 /**
  * Encapsulates the full ITMajdoor session lifecycle:
@@ -38,6 +46,8 @@ export function useMajdoorSession() {
   const [partnerTyping, setPartnerTyping] = useState(false);
   // Live connection quality, sampled from WebRTC stats.
   const [quality, setQuality] = useState<ConnectionQuality>("unknown");
+  // Short-lived emoji reactions floating over the video (mine + partner's).
+  const [reactions, setReactions] = useState<FloatingReaction[]>([]);
   // Camera and mic start ON; the user can mute/disable from the controls.
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
@@ -209,6 +219,7 @@ export function useMajdoorSession() {
       setStatus("connecting");
       setMessages([]);
       setPartnerTyping(false);
+      setReactions([]);
       teardownPeer();
       const pc = await createPeer();
 
@@ -296,6 +307,9 @@ export function useMajdoorSession() {
     });
     socket.on("typing", ({ typing }: { typing: boolean }) => {
       setPartnerTyping(!!typing);
+    });
+    socket.on("reaction", ({ emoji }: { emoji: string }) => {
+      spawnReaction(emoji);
     });
     socket.on("partner:left", () => {
       teardownPeerRef.current();
@@ -451,6 +465,21 @@ export function useMajdoorSession() {
     socketRef.current?.emit("typing", { typing });
   }, []);
 
+  // Add a floating reaction that auto-removes itself after its lifetime.
+  const spawnReaction = useCallback((emoji: string) => {
+    const id = crypto.randomUUID();
+    setReactions((prev) => [...prev, { id, emoji }]);
+    setTimeout(() => {
+      setReactions((prev) => prev.filter((r) => r.id !== id));
+    }, REACTION_LIFETIME_MS);
+  }, []);
+
+  // Send an emoji reaction to the partner. We do NOT show it on our own screen;
+  // only the partner sees the reaction float over their video.
+  const sendReaction = useCallback((emoji: string) => {
+    socketRef.current?.emit("reaction", { emoji });
+  }, []);
+
   const toggleMic = useCallback(() => {
     const stream = localStreamRef.current;
     if (!stream) return;
@@ -470,6 +499,7 @@ export function useMajdoorSession() {
     messages,
     partnerTyping,
     quality,
+    reactions,
     micOn,
     camOn,
     localVideoRef,
@@ -479,6 +509,7 @@ export function useMajdoorSession() {
     stop,
     sendMessage,
     setTyping,
+    sendReaction,
     toggleMic,
     toggleCam,
   };

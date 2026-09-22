@@ -41,3 +41,15 @@ export const TYPING_IDLE_MS = 1500;
 
 /** Max chat message length (also enforced server-side). */
 export const MAX_MESSAGE_LENGTH = 2000;
+
+/** Emoji reactions the user can send; they float up over the video. */
+export const REACTION_EMOJIS = ["👍", "😂", "🔥", "❤️", "👏", "😮"] as const;
+
+/** How long a floating reaction stays before removal (matches the CSS animation). */
+export const REACTION_LIFETIME_MS = 4000;
+
+/** A single floating reaction instance shown over the video. */
+export interface FloatingReaction {
+  id: string;
+  emoji: string;
+}

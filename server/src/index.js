@@ -147,6 +147,7 @@ const io = new Server(server, {
  *   "next"                       -> leave current partner and rejoin the queue
  *   "chat:message" { text }      -> send a text message to current partner
  *   "typing" { typing }          -> relay a typing indicator to current partner
+ *   "reaction" { emoji }         -> relay an emoji reaction to current partner
  *   "signal" { description|candidate } -> relay a WebRTC signal to current partner
  *
  * Server -> Client:
@@ -155,6 +156,7 @@ const io = new Server(server, {
  *   "partner:left"               -> your partner disconnected or skipped
  *   "chat:message" { text }      -> an incoming text message from your partner
  *   "typing" { typing }          -> your partner started/stopped typing
+ *   "reaction" { emoji }         -> your partner sent an emoji reaction
  *   "signal" { ... }             -> an incoming WebRTC signal from your partner
  */
 
@@ -219,6 +221,14 @@ io.on("connection", (socket) => {
   socket.on("typing", ({ typing } = {}) => {
     const partnerId = matchmaker.getPartner(socket.id);
     if (partnerId) io.to(partnerId).emit("typing", { typing: !!typing });
+  });
+
+  // Relay an emoji reaction to the current partner.
+  socket.on("reaction", ({ emoji } = {}) => {
+    const partnerId = matchmaker.getPartner(socket.id);
+    if (partnerId && typeof emoji === "string" && emoji.length <= 8) {
+      io.to(partnerId).emit("reaction", { emoji });
+    }
   });
 
   // Relay WebRTC signaling (SDP offers/answers and ICE candidates) untouched.

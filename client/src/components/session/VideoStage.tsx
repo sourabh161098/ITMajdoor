@@ -1,10 +1,15 @@
 import type { RefObject } from "react";
 import { Loader2, VideoOff, MicOff } from "lucide-react";
-import type { Status, ConnectionQuality } from "../../constants/session";
+import type {
+  Status,
+  ConnectionQuality,
+  FloatingReaction,
+} from "../../constants/session";
 
 interface VideoStageProps {
   status: Status;
   quality: ConnectionQuality;
+  reactions: FloatingReaction[];
   micOn: boolean;
   camOn: boolean;
   localVideoRef: RefObject<HTMLVideoElement>;
@@ -25,6 +30,7 @@ const QUALITY_META: Record<
 export function VideoStage({
   status,
   quality,
+  reactions,
   micOn,
   camOn,
   localVideoRef,
@@ -58,6 +64,24 @@ export function VideoStage({
           </div>
         </div>
       )}
+
+      {/* Floating emoji reactions from the partner — rise slowly from the
+          bottom of the video up to the top, then fade out. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
+        {reactions.map((r) => {
+          // Small deterministic horizontal offset so stacked reactions spread.
+          const offset = ((r.id.charCodeAt(0) % 11) - 5) * 14;
+          return (
+            <span
+              key={r.id}
+              className="absolute bottom-0 animate-reaction-float text-5xl drop-shadow-lg"
+              style={{ transform: `translateX(${offset}px)` }}
+            >
+              {r.emoji}
+            </span>
+          );
+        })}
+      </div>
 
       {/* Partner label with a live connection-quality dot */}
       <span className="absolute left-4 top-4 flex items-center gap-2 rounded-lg bg-black/40 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/10 backdrop-blur-md">

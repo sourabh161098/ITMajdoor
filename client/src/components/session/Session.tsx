@@ -10,8 +10,10 @@ import {
   Moon,
   Laptop,
   MessageSquare,
+  Smile,
 } from "lucide-react";
 import { useMajdoorSession } from "../../hooks/useMajdoorSession";
+import { REACTION_EMOJIS } from "../../constants/session";
 import type { Theme } from "../../hooks/useTheme";
 import { Chat } from "./Chat";
 import { VideoStage } from "./VideoStage";
@@ -35,6 +37,7 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
     messages,
     partnerTyping,
     quality,
+    reactions,
     micOn,
     camOn,
     localVideoRef,
@@ -44,12 +47,15 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
     stop,
     sendMessage,
     setTyping,
+    sendReaction,
     toggleMic,
     toggleCam,
   } = useMajdoorSession();
 
   // Chat panel is hidden by default; the chat button in the controls toggles it.
   const [chatOpen, setChatOpen] = useState(false);
+  // Emoji reactions popover (kept compact so the control bar fits on mobile).
+  const [emojiOpen, setEmojiOpen] = useState(false);
 
   // Unread badge: counts ONLY messages received from the partner ("them")
   // while the chat panel is closed. Your own sent messages never count, and
@@ -133,6 +139,7 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
         <VideoStage
           status={status}
           quality={quality}
+          reactions={reactions}
           micOn={micOn}
           camOn={camOn}
           localVideoRef={localVideoRef}
@@ -176,6 +183,36 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
               <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-[var(--bg)]">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
+            )}
+          </div>
+
+          {/* Emoji reactions — a single button opens a popover, so the control
+              bar stays compact and never overflows on mobile. */}
+          <div className="relative">
+            <IconButton
+              onClick={() => setEmojiOpen((o) => !o)}
+              disabled={!connected}
+              label={emojiOpen ? "Hide reactions" : "Send a reaction"}
+              variant={emojiOpen ? "primary" : "secondary"}
+              icon={Smile}
+            />
+            {emojiOpen && connected && (
+              <div className="absolute bottom-full left-1/2 mb-3 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 shadow-xl">
+                {REACTION_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => {
+                      sendReaction(emoji);
+                      setEmojiOpen(false);
+                    }}
+                    aria-label={`Send ${emoji} reaction`}
+                    title={`Send ${emoji}`}
+                    className="grid h-10 w-10 place-items-center rounded-full text-xl transition-all hover:scale-125 hover:bg-[var(--surface-2)] active:scale-95"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
           <div className="mx-1 h-6 w-px bg-[var(--border)]" />
