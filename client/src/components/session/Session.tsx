@@ -190,8 +190,14 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
           onTyping={setTyping}
         />
 
-        {/* Controls — floating over the bottom of the video */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-5 z-30 flex justify-center px-4">
+        {/* Controls — floating over the bottom of the video. Hidden on mobile
+            while the chat panel (a full-screen sheet there) is open, so it
+            doesn't cover the chat input; still shown on desktop (side panel). */}
+        <div
+          className={`pointer-events-none absolute inset-x-0 bottom-5 z-30 justify-center px-4 ${
+            chatOpen ? "hidden sm:flex" : "flex"
+          }`}
+        >
           <div className="pointer-events-auto flex flex-nowrap items-center justify-center gap-2 rounded-[3rem] border border-white/10 bg-black/50 px-4 py-3 shadow-2xl backdrop-blur-md sm:px-6">
           <IconButton
             onClick={toggleMic}
