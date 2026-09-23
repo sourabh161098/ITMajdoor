@@ -148,6 +148,7 @@ const io = new Server(server, {
  *   "chat:message" { text }      -> send a text message to current partner
  *   "typing" { typing }          -> relay a typing indicator to current partner
  *   "reaction" { emoji }         -> relay an emoji reaction to current partner
+ *   "cam" { on }                 -> relay your camera on/off state to partner
  *   "signal" { description|candidate } -> relay a WebRTC signal to current partner
  *
  * Server -> Client:
@@ -157,6 +158,7 @@ const io = new Server(server, {
  *   "chat:message" { text }      -> an incoming text message from your partner
  *   "typing" { typing }          -> your partner started/stopped typing
  *   "reaction" { emoji }         -> your partner sent an emoji reaction
+ *   "cam" { on }                 -> your partner turned their camera on/off
  *   "signal" { ... }             -> an incoming WebRTC signal from your partner
  */
 
@@ -229,6 +231,13 @@ io.on("connection", (socket) => {
     if (partnerId && typeof emoji === "string" && emoji.length <= 8) {
       io.to(partnerId).emit("reaction", { emoji });
     }
+  });
+
+  // Relay the sender's camera on/off state to the current partner, so their
+  // UI can show a "camera off" placeholder instead of a black video.
+  socket.on("cam", ({ on } = {}) => {
+    const partnerId = matchmaker.getPartner(socket.id);
+    if (partnerId) io.to(partnerId).emit("cam", { on: !!on });
   });
 
   // Relay WebRTC signaling (SDP offers/answers and ICE candidates) untouched.

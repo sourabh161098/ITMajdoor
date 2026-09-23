@@ -11,6 +11,7 @@ import {
   Laptop,
   MessageSquare,
   Smile,
+  AlertTriangle,
 } from "lucide-react";
 import { useMajdoorSession } from "../../hooks/useMajdoorSession";
 import { REACTION_EMOJIS } from "../../constants/session";
@@ -36,7 +37,9 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
     status,
     messages,
     partnerTyping,
+    partnerCamOn,
     quality,
+    mediaError,
     reactions,
     micOn,
     camOn,
@@ -56,6 +59,8 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
   const [chatOpen, setChatOpen] = useState(false);
   // Emoji reactions popover (kept compact so the control bar fits on mobile).
   const [emojiOpen, setEmojiOpen] = useState(false);
+  // Self view: swap which video is fullscreen (you vs the partner).
+  const [selfView, setSelfView] = useState(false);
 
   // Unread badge: counts ONLY messages received from the partner ("them")
   // while the chat panel is closed. Your own sent messages never count, and
@@ -104,7 +109,7 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
       <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-5 py-3">
         <span className="flex items-center gap-2 text-xl font-extrabold tracking-tight">
           <Laptop className="h-5 w-5 text-accent" strokeWidth={2.4} />
-          IT<span className="text-accent-text">Majdoor</span>
+          IT<span className="text-accent">Majdoor</span>
         </span>
         <div className="flex items-center gap-3">
           <span
@@ -136,12 +141,42 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
 
       {/* Stage: video always fills; chat slides in as a panel when opened. */}
       <main className="relative flex min-h-0 flex-1 flex-row overflow-hidden">
+        {/* Camera/mic error — actionable message instead of a dead spinner. */}
+        {mediaError && (
+          <div className="absolute inset-0 z-40 grid place-items-center bg-[var(--bg)] px-6">
+            <div className="max-w-sm text-center">
+              <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-red-500/15 text-red-500">
+                <AlertTriangle size={28} />
+              </span>
+              <p className="mt-4 text-base font-semibold text-[var(--text)]">
+                {mediaError}
+              </p>
+              <div className="mt-6 flex items-center justify-center gap-3">
+                <button
+                  onClick={join}
+                  className="rounded-xl bg-accent px-6 py-2.5 font-semibold text-black transition hover:bg-accent-hover"
+                >
+                  Try again
+                </button>
+                <button
+                  onClick={handleStop}
+                  className="rounded-xl border border-[var(--border)] px-6 py-2.5 font-semibold text-[var(--text)] transition hover:bg-[var(--surface-2)]"
+                >
+                  Go back
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <VideoStage
           status={status}
           quality={quality}
           reactions={reactions}
           micOn={micOn}
           camOn={camOn}
+          partnerCamOn={partnerCamOn}
+          swapped={selfView}
+          onSwap={() => setSelfView((s) => !s)}
           localVideoRef={localVideoRef}
           remoteVideoRef={remoteVideoRef}
         />
@@ -154,11 +189,10 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
           partnerTyping={partnerTyping}
           onTyping={setTyping}
         />
-      </main>
 
-      {/* Controls */}
-      <footer className="flex justify-center border-t border-[var(--border)] bg-[var(--surface)] px-5 py-4">
-        <div className="flex flex-nowrap items-center justify-center gap-2 rounded-[3rem] bg-[var(--bg)] px-4 py-3 shadow-inner sm:px-6">
+        {/* Controls — floating over the bottom of the video */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-5 z-30 flex justify-center px-4">
+          <div className="pointer-events-auto flex flex-nowrap items-center justify-center gap-2 rounded-[3rem] border border-white/10 bg-black/50 px-4 py-3 shadow-2xl backdrop-blur-md sm:px-6">
           <IconButton
             onClick={toggleMic}
             label={micOn ? "Mute microphone" : "Unmute microphone"}
@@ -215,7 +249,7 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
               </div>
             )}
           </div>
-          <div className="mx-1 h-6 w-px bg-[var(--border)]" />
+          <div className="mx-1 h-6 w-px bg-white/15" />
 
           {/* Always visible. Circular on small screens; a text label appears
               on large screens (the button naturally widens to fit it). */}
@@ -235,8 +269,9 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
           >
             <PhoneOff size={19} strokeWidth={2.2} />
           </button>
+          </div>
         </div>
-      </footer>
+      </main>
     </div>
   );
 }

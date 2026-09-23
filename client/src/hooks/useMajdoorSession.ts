@@ -44,13 +44,21 @@ export function useMajdoorSession() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   // True while the partner is actively typing (driven by "typing" events).
   const [partnerTyping, setPartnerTyping] = useState(false);
+  // Whether the partner's camera is on (driven by "cam" events). Assume on until
+  // told otherwise, so we show video by default.
+  const [partnerCamOn, setPartnerCamOn] = useState(true);
   // Live connection quality, sampled from WebRTC stats.
   const [quality, setQuality] = useState<ConnectionQuality>("unknown");
+  // Set when camera/mic access fails, so the UI can show a helpful message
+  // instead of a dead spinner. Null while everything is fine.
+  const [mediaError, setMediaError] = useState<string | null>(null);
   // Short-lived emoji reactions floating over the video (mine + partner's).
   const [reactions, setReactions] = useState<FloatingReaction[]>([]);
   // Camera and mic start ON; the user can mute/disable from the controls.
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+  // Mirror of camOn for use inside stable callbacks (handleMatched/toggleCam).
+  const camOnRef = useRef(true);
   // Tracked in state so a useEffect can (re)attach it to the <video> element
   // once that element is actually mounted (it isn't while on the Landing page).
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -74,27 +82,72 @@ export function useMajdoorSession() {
 
   const ensureLocalStream = useCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current;
-    // Orientation-aware: portrait capture on phones so the video fills the tall
-    // area instead of being cropped to a tiny slice by object-cover.
-    const stream = await navigator.mediaDevices.getUserMedia(
-      getMediaConstraints()
-    );
-    // Tracks are enabled by default, so the user joins with mic and camera on.
-    localStreamRef.current = stream;
-    // Trigger the attach effect; the <video> element may not be mounted yet.
-    setLocalStream(stream);
-    return stream;
+
+    // Guard: getUserMedia is only available on secure origins (HTTPS or
+    // localhost). On plain HTTP (some LAN/mobile setups) it's undefined.
+    if (!navigator.mediaDevices?.getUserMedia) {
+      const msg =
+        "Camera/mic unavailable. Open the site over HTTPS (secure) — most browsers block media on insecure pages.";
+      setMediaError(msg);
+      throw new Error(msg);
+    }
+
+    try {
+      // Orientation-aware: portrait capture on phones so the video fills the
+      // tall area instead of being cropped to a tiny slice by object-cover.
+      const stream = await navigator.mediaDevices.getUserMedia(
+        getMediaConstraints()
+      );
+      setMediaError(null);
+      localStreamRef.current = stream;
+      // Trigger the attach effect; the <video> may not be mounted yet.
+      setLocalStream(stream);
+      return stream;
+    } catch (err) {
+      // Map the common getUserMedia errors to a friendly, actionable message.
+      const name = (err as DOMException)?.name;
+      let msg: string;
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        msg =
+          "Camera & mic permission was denied. Allow access in your browser settings and try again.";
+      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+        msg =
+          "No compatible camera/mic found. Check that a camera is connected and not in use by another app.";
+      } else if (name === "NotReadableError") {
+        msg =
+          "Your camera/mic is busy — another app or browser tab may be using it. Close it and try again.";
+      } else {
+        msg = "Couldn't access your camera and mic. Please try again.";
+      }
+      setMediaError(msg);
+      throw err;
+    }
   }, []);
+
+  // Attach a stream to a <video> and explicitly call play(). iOS Safari /
+  // iPadOS block autoplay for media that isn't muted, and even muted autoplay
+  // can need a nudge — so we always call play() and swallow the (harmless)
+  // rejection that fires if the browser defers playback.
+  const attachStream = useCallback(
+    (el: HTMLVideoElement | null, stream: MediaStream | null) => {
+      if (!el || !stream) return;
+      if (el.srcObject !== stream) el.srcObject = stream;
+      const p = el.play();
+      if (p && typeof p.catch === "function") {
+        p.catch(() => {
+          /* Autoplay deferred; will play on the next user interaction. */
+        });
+      }
+    },
+    []
+  );
 
   // Attach (or re-attach) the local stream to the local <video> whenever either
   // the stream or the mounted element changes. This handles the case where the
   // stream is acquired on the Landing page before the video element exists.
   useEffect(() => {
-    const el = localVideoRef.current;
-    if (el && localStream && el.srcObject !== localStream) {
-      el.srcObject = localStream;
-    }
-  }, [localStream, status]);
+    attachStream(localVideoRef.current, localStream);
+  }, [localStream, status, attachStream]);
 
   // --- WebRTC peer connection -------------------------------------------
 
@@ -138,24 +191,19 @@ export function useMajdoorSession() {
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        // Candidate "typ" tells us the path: host (local), srflx (via STUN),
-        // relay (via TURN). If we never see "relay" and the connection fails,
-        // it means we need a TURN server.
-        console.log("[webrtc] local candidate:", event.candidate.type, event.candidate.candidate);
         socketRef.current?.emit("signal", { candidate: event.candidate });
       }
     };
 
     pc.ontrack = (event) => {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-      }
+      // Explicitly attach + play so the partner's video isn't left frozen on
+      // iOS/iPadOS (which block autoplay of unmuted media).
+      attachStream(remoteVideoRef.current, event.streams[0]);
     };
 
     // Drive the UI status from the ACTUAL peer connection state, not the
     // socket match. This is the fix for "shows Connected but isn't".
     pc.onconnectionstatechange = () => {
-      console.log("[webrtc] connectionState:", pc.connectionState);
       // Ignore events from a peer connection we've already replaced/torn down,
       // otherwise a stale "closed" event can re-queue us and desync the
       // server-side partner mapping (which breaks chat routing).
@@ -184,7 +232,6 @@ export function useMajdoorSession() {
     };
 
     pc.oniceconnectionstatechange = () => {
-      console.log("[webrtc] iceConnectionState:", pc.iceConnectionState);
       if (pc.iceConnectionState === "failed") {
         // Try an ICE restart before giving up (initiator side re-offers).
         try {
@@ -197,7 +244,7 @@ export function useMajdoorSession() {
 
     pcRef.current = pc;
     return pc;
-  }, [ensureLocalStream, teardownPeer]);
+  }, [ensureLocalStream, teardownPeer, attachStream]);
 
   const flushPendingCandidates = useCallback(async () => {
     const pc = pcRef.current;
@@ -221,9 +268,14 @@ export function useMajdoorSession() {
       setStatus("connecting");
       setMessages([]);
       setPartnerTyping(false);
+      setPartnerCamOn(true);
       setReactions([]);
       teardownPeer();
       const pc = await createPeer();
+
+      // Tell the new partner our current camera state so they render correctly
+      // even if we joined with the camera already off.
+      socketRef.current?.emit("cam", { on: camOnRef.current });
 
       if (initiator) {
         const offer = await pc.createOffer();
@@ -313,9 +365,13 @@ export function useMajdoorSession() {
     socket.on("reaction", ({ emoji }: { emoji: string }) => {
       spawnReaction(emoji);
     });
+    socket.on("cam", ({ on }: { on: boolean }) => {
+      setPartnerCamOn(!!on);
+    });
     socket.on("partner:left", () => {
       teardownPeerRef.current();
       setPartnerTyping(false);
+      setPartnerCamOn(true);
       setStatus("waiting");
       setMessages((prev) => [
         ...prev,
@@ -411,7 +467,15 @@ export function useMajdoorSession() {
   // --- Public actions ----------------------------------------------------
 
   const join = useCallback(async () => {
-    await ensureLocalStream();
+    try {
+      await ensureLocalStream();
+    } catch {
+      // Media failed (permission denied, no device, insecure origin, etc.).
+      // mediaError is already set; return to idle so the user sees it and can
+      // retry, instead of hanging on the "Finding…" spinner forever.
+      setStatus("idle");
+      return;
+    }
     // Fetch ICE servers (with any TURN credentials) from the backend before
     // matchmaking, so they're ready when the peer connection is created.
     iceServersRef.current = await fetchIceServers();
@@ -447,6 +511,8 @@ export function useMajdoorSession() {
     setMessages([]);
     setMicOn(true);
     setCamOn(true);
+    camOnRef.current = true;
+    setPartnerCamOn(true);
     setStatus("idle");
   }, [teardownPeer]);
 
@@ -493,14 +559,22 @@ export function useMajdoorSession() {
     const stream = localStreamRef.current;
     if (!stream) return;
     stream.getVideoTracks().forEach((t) => (t.enabled = !t.enabled));
-    setCamOn((prev) => !prev);
+    setCamOn((prev) => {
+      const next = !prev;
+      camOnRef.current = next;
+      // Tell the partner so they can show a camera-off placeholder.
+      socketRef.current?.emit("cam", { on: next });
+      return next;
+    });
   }, []);
 
   return {
     status,
     messages,
     partnerTyping,
+    partnerCamOn,
     quality,
+    mediaError,
     reactions,
     micOn,
     camOn,

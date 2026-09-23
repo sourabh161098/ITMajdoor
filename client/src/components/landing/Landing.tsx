@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   Laptop,
   BookOpen,
-  HelpCircle,
   Zap,
   ShieldCheck,
   Database,
@@ -81,12 +80,6 @@ export function Landing({
 
   const isDefaultHeadline = headline === DEFAULT_HEADLINE;
 
-  const scrollToFeatures = () => {
-    document
-      .getElementById("how-it-works")
-      ?.scrollIntoView({ behavior: "smooth" });
-  };
-
   return (
     <div className="relative flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text)]">
       {/* Ambient background glow */}
@@ -105,19 +98,12 @@ export function Landing({
             <Laptop className="h-5 w-5" strokeWidth={2.4} />
           </span>
           <span>
-            IT<span className="text-accent-text">Majdoor</span>
+            IT<span className="text-accent">Majdoor</span>
           </span>
         </span>
 
         {/* Right: nav */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={scrollToFeatures}
-            className="hidden items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:text-[var(--text)] md:inline-flex"
-          >
-            <HelpCircle size={15} strokeWidth={2.2} />
-            How It Works
-          </button>
           <button
             onClick={onOpenGuidelines}
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:text-[var(--text)]"
@@ -235,7 +221,7 @@ export function Landing({
           proprietary IP.
           <button
             onClick={onOpenGuidelines}
-            className="font-semibold text-accent-text underline underline-offset-2 hover:no-underline"
+            className="font-semibold text-accent underline underline-offset-2 hover:no-underline"
           >
             Read the guidelines
           </button>

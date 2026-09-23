@@ -178,7 +178,7 @@ export function Guidelines({ onBack, theme, onToggleTheme }: GuidelinesProps) {
           className="flex items-center gap-2 text-2xl font-extrabold tracking-tight transition hover:opacity-80"
         >
           <Laptop className="h-6 w-6 text-accent" strokeWidth={2.4} />
-          IT<span className="text-accent-text">Majdoor</span>
+          IT<span className="text-accent">Majdoor</span>
         </button>
         <div className="flex items-center gap-2">
           <button

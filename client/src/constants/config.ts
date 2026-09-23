@@ -97,16 +97,16 @@ export function getMediaConstraints(): MediaStreamConstraints {
     typeof window !== "undefined" &&
     window.matchMedia("(orientation: portrait)").matches;
 
-  // Long/short edges of the target 720p frame.
-  const longEdge = { ideal: 1280, max: 1920 };
-  const shortEdge = { ideal: 720, max: 1080 };
+  // "ideal" only (no hard max) so weaker cameras degrade gracefully instead of
+  // throwing OverconstrainedError. Portrait: taller than wide; landscape: wider.
+  const longEdge = { ideal: 1280 };
+  const shortEdge = { ideal: 720 };
 
   return {
     video: {
-      // Portrait: taller than wide. Landscape: wider than tall.
       width: isPortrait ? shortEdge : longEdge,
       height: isPortrait ? longEdge : shortEdge,
-      frameRate: { ideal: 30, max: 30 },
+      frameRate: { ideal: 30 },
       facingMode: "user",
     },
     audio: AUDIO_CONSTRAINTS,
