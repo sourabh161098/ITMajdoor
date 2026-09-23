@@ -29,7 +29,7 @@ const FULL = "absolute inset-0 h-full w-full";
 // bar (which spans most of the width). On larger screens the bar is centered
 // with room to spare, so the PiP drops back to the bottom-right corner.
 const PIP =
-  "absolute bottom-24 right-4 z-10 aspect-[4/3] w-28 overflow-hidden rounded-2xl ring-1 ring-white/15 shadow-2xl sm:bottom-4 sm:w-48";
+  "absolute bottom-28 right-4 z-10 aspect-[4/3] w-28 overflow-hidden rounded-2xl ring-1 ring-white/15 shadow-2xl sm:bottom-4 sm:w-48";
 
 // Signal-dot color + tooltip for each quality level.
 const QUALITY_META: Record<
@@ -93,19 +93,32 @@ export function VideoStage({
         )}
         {/* When the partner is the small PiP tile, show the swap badge. */}
         {swapped && canSwap && swapBadge}
-        {/* Partner label + quality dot (only meaningful on the partner tile) */}
-        <span className="absolute left-3 top-3 flex items-center gap-2 rounded-lg bg-black/40 px-2.5 py-1 text-xs font-semibold text-white ring-1 ring-white/10 backdrop-blur-md">
-          {status === "connected" && (
+        {/* Partner label + quality dot — full label only on the fullscreen tile.
+            On the small PiP tile show just the quality dot to avoid crowding. */}
+        {swapped ? (
+          status === "connected" && (
             <span
               title={q.label}
               aria-label={q.label}
-              className={`h-2 w-2 shrink-0 rounded-full ${q.color} ${
+              className={`absolute left-2 top-2 h-2.5 w-2.5 rounded-full ring-2 ring-black/40 ${q.color} ${
                 quality === "poor" ? "animate-pulse" : ""
               }`}
             />
-          )}
-          Partner
-        </span>
+          )
+        ) : (
+          <span className="absolute left-3 top-3 flex items-center gap-2 rounded-lg bg-black/40 px-2.5 py-1 text-xs font-semibold text-white ring-1 ring-white/10 backdrop-blur-md">
+            {status === "connected" && (
+              <span
+                title={q.label}
+                aria-label={q.label}
+                className={`h-2 w-2 shrink-0 rounded-full ${q.color} ${
+                  quality === "poor" ? "animate-pulse" : ""
+                }`}
+              />
+            )}
+            Partner
+          </span>
+        )}
       </div>
 
       {/* Overlay while not connected — animated galaxy backdrop so it feels
@@ -172,20 +185,33 @@ export function VideoStage({
         {/* Camera-off placeholder */}
         {!camOn && (
           <div className="absolute inset-0 grid place-items-center bg-neutral-900 text-white/50">
-            <VideoOff size={24} />
+            <VideoOff size={swapped ? 40 : 24} />
           </div>
         )}
 
-        <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1.5">
-          <span className="rounded-md bg-black/50 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
+        {swapped ? (
+          // Local is the fullscreen tile — label it top-left like the partner.
+          <span className="absolute left-3 top-3 flex items-center gap-2 rounded-lg bg-black/40 px-2.5 py-1 text-xs font-semibold text-white ring-1 ring-white/10 backdrop-blur-md">
             You
+            {!micOn && (
+              <span className="grid h-4 w-4 place-items-center rounded bg-red-500 text-white">
+                <MicOff size={10} />
+              </span>
+            )}
           </span>
-          {!micOn && (
-            <span className="grid h-5 w-5 place-items-center rounded-md bg-red-500 text-white">
-              <MicOff size={12} />
+        ) : (
+          // Local is the small PiP tile — compact label at the bottom.
+          <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1.5">
+            <span className="rounded-md bg-black/50 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
+              You
             </span>
-          )}
-        </div>
+            {!micOn && (
+              <span className="grid h-5 w-5 place-items-center rounded-md bg-red-500 text-white">
+                <MicOff size={12} />
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
