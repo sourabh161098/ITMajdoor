@@ -25,6 +25,8 @@ interface SessionProps {
   onToggleTheme: () => void;
   /** Called when the user hits Stop (returns to the landing page). */
   onExit: () => void;
+  /** Domain the user picked for interest matching ("all" = anyone). */
+  domain: string;
 }
 
 /**
@@ -32,7 +34,7 @@ interface SessionProps {
  * WebRTC logic in useMajdoorSession are only downloaded when a user joins,
  * keeping the initial landing bundle small.
  */
-export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
+export function Session({ theme, onToggleTheme, onExit, domain }: SessionProps) {
   const {
     status,
     messages,
@@ -91,10 +93,10 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
     }
   }, [status]);
 
-  // Kick off matchmaking as soon as the session mounts.
+  // Kick off matchmaking as soon as the session mounts, with the chosen domain.
   useEffect(() => {
-    join();
-  }, [join]);
+    join(domain);
+  }, [join, domain]);
 
   const connected = status === "connected";
 
@@ -157,7 +159,7 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
               </p>
               <div className="mt-6 flex items-center justify-center gap-3">
                 <button
-                  onClick={join}
+                  onClick={() => join(domain)}
                   className="rounded-xl bg-accent px-6 py-2.5 font-semibold text-black transition hover:bg-accent-hover"
                 >
                   Try again

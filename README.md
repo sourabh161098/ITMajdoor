@@ -251,6 +251,31 @@ backend light and cheap.
 hundred concurrent users (and sleeps when idle), and Twilio is the thing to
 watch for cost, not capacity.
 
+### Scaling the backend further (the real path)
+
+The server keeps matchmaking state (the waiting queue + partner pairs) **in
+memory in a single process**. That has direct consequences for how it scales:
+
+- **Do NOT run it clustered / multi-process** (`pm2 -i max`, the `cluster`
+  module, or multiple instances) as-is. Each worker would have its **own**
+  in-memory queue, so two users on different workers could never be matched,
+  and WebSocket connections would break across workers. This is the most common
+  way to accidentally break this app while "scaling" it.
+- **To scale up first:** move to a larger single Render instance (more CPU/RAM,
+  no cold-start sleep). One process comfortably handles a few hundred to ~1,000
+  concurrent users because it only relays tiny messages (video is P2P).
+- **To scale out (horizontal, many instances):** you need three things together
+  — (1) a **Redis-backed Socket.IO adapter** (`@socket.io/redis-adapter`) so
+  events reach the right socket across instances, (2) **shared matchmaking
+  state in Redis** instead of in-process Maps, and (3) **sticky sessions** at
+  the load balancer so a client stays on one instance. Only then is
+  multi-process/multi-instance safe.
+
+Node runtime flags like `--max-old-space-size`, `UV_THREADPOOL_SIZE`, or
+switching Express→Fastify give little to nothing here: the server does no heavy
+per-request CPU, filesystem, or JSON work — its scale is bound by concurrent
+socket connections and the single-process in-memory state, not request routing.
+
 ---
 
 ## Possible next steps

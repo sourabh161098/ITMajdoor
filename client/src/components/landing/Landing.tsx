@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Shuffle,
   Video,
-  MessageSquare,
   Sun,
   Moon,
   ArrowRight,
@@ -10,51 +8,29 @@ import {
   Laptop,
   BookOpen,
   Zap,
-  ShieldCheck,
-  Database,
-  Network,
-  KeyRound,
 } from "lucide-react";
 import type { Theme } from "../../hooks/useTheme";
 import { QuoteRotator } from "./QuoteRotator";
+import { DomainModal } from "./DomainModal";
 import { IconButton } from "../ui/IconButton";
 import {
   DEFAULT_HEADLINE,
   HEADLINE_CYCLE_MS,
   getHeroMood,
 } from "../../constants/moodline";
+import {
+  LANDING_FEATURES,
+  LANDING_TRUST,
+  LANDING_COPY,
+} from "../../constants/landing";
 
 interface LandingProps {
-  onJoin: () => void;
+  /** Called with the chosen domain id once the user confirms in the modal. */
+  onJoin: (domainId: string) => void;
   theme: Theme;
   onToggleTheme: () => void;
   onOpenGuidelines: () => void;
 }
-
-const FEATURES = [
-  {
-    icon: Shuffle,
-    title: "Random match",
-    desc: "Paired instantly and at random with whoever's in the queue — a dev, a DevOps on-call victim, or a curious designer. Luck of the draw.",
-  },
-  {
-    icon: Video,
-    title: "Live video",
-    desc: "Low-latency peer-to-peer WebRTC video and crystal clear audio built directly in browser with zero install.",
-  },
-  {
-    icon: MessageSquare,
-    title: "Text chat",
-    desc: "Chat alongside the call with formatted code block sharing, timestamps, and quick humorous developer emojis.",
-  },
-];
-
-const TRUST = [
-  { icon: ShieldCheck, label: "100% Anonymous" },
-  { icon: Database, label: "Zero Logs Stored" },
-  { icon: Network, label: "Direct WebRTC Mesh" },
-  { icon: KeyRound, label: "End-to-End Media" },
-];
 
 export function Landing({
   onJoin,
@@ -62,6 +38,9 @@ export function Landing({
   onToggleTheme,
   onOpenGuidelines,
 }: LandingProps) {
+  // Domain picker modal shown when the user taps Join.
+  const [domainOpen, setDomainOpen] = useState(false);
+
   // Day-of-week "mood" headline. On Friday afternoon it alternates between the
   // brand name and the mood line every few seconds; otherwise it stays fixed.
   const [headline, setHeadline] = useState(() => getHeroMood().initial);
@@ -146,38 +125,37 @@ export function Landing({
         {/* Pill below the headline */}
         <span className="mt-6 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-1.5 font-mono text-xs text-[var(--muted)]">
           <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-          Random 1-on-1 chat for IT folks
+          {LANDING_COPY.pill}
         </span>
 
         {/* Subtitle */}
         <p className="mt-6 max-w-xl text-sm text-[var(--muted)] sm:text-base">
-          Get matched with a random IT worker for a quick video chat. Swap
-          on-call horror stories, vent about sprint velocity, or just say hi —
-          no logins, no pressure.
+          {LANDING_COPY.subtitle}
         </p>
 
-        {/* CTA — orange button, black text with a white camera icon */}
+        {/* CTA — opens the domain picker; joining happens after confirm. */}
         <button
-          onClick={onJoin}
+          onClick={() => setDomainOpen(true)}
           className="mt-8 inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-accent px-14 text-lg font-semibold text-black shadow-sm shadow-accent/25 transition-all hover:bg-accent-hover active:scale-[0.97]"
         >
           <Video size={22} strokeWidth={2.2} className="text-white" />
-          Join ITMajdoor
+          {LANDING_COPY.cta}
           <ArrowRight size={22} strokeWidth={2.2} />
         </button>
 
         {/* CTA meta */}
         <p className="mt-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 font-mono text-xs text-[var(--muted)]">
           <Zap size={13} className="text-accent" />
-          <span className="text-accent">Instant Match</span>
-          <span className="text-[var(--muted)]/50">•</span>
-          Avg queue time: 4s
-          <span className="text-[var(--muted)]/50">•</span>
-          WebRTC P2P
+          <span className="text-accent">{LANDING_COPY.ctaMetaLead}</span>
+          {LANDING_COPY.ctaMeta.map((item) => (
+            <span key={item} className="contents">
+              <span className="text-[var(--muted)]/50">•</span>
+              {item}
+            </span>
+          ))}
         </p>
         <p className="mt-3 max-w-sm text-sm text-[var(--muted)]">
-          You'll be paired with someone waiting in the queue. Camera &amp; mic
-          permissions required for audio/video.
+          {LANDING_COPY.ctaHelper}
         </p>
 
         {/* Terminal window with rotating confessions */}
@@ -188,7 +166,7 @@ export function Landing({
           id="how-it-works"
           className="mt-8 grid w-full max-w-3xl grid-cols-1 gap-4 scroll-mt-24 sm:grid-cols-3"
         >
-          {FEATURES.map((f) => (
+          {LANDING_FEATURES.map((f) => (
             <div
               key={f.title}
               className="group rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 text-left transition-all hover:-translate-y-1 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5"
@@ -204,7 +182,7 @@ export function Landing({
 
         {/* Trust row */}
         <div className="mt-12 flex w-full max-w-3xl flex-wrap items-center justify-center gap-x-8 gap-y-3 border-t border-[var(--border)] pt-8 font-mono text-xs text-[var(--muted)]">
-          {TRUST.map((t) => (
+          {LANDING_TRUST.map((t) => (
             <span key={t.label} className="inline-flex items-center gap-2">
               <t.icon size={14} className="text-accent" strokeWidth={2.2} />
               {t.label}
@@ -217,8 +195,7 @@ export function Landing({
       <footer className="relative z-10 border-t border-[var(--border)] bg-[var(--surface)] px-6 py-6 text-center text-sm text-[var(--muted)]">
         <p className="flex flex-wrap items-center justify-center gap-1.5">
           <AlertTriangle size={15} className="text-accent" />
-          Just for fun. Never share company credentials, production env keys, or
-          proprietary IP.
+          {LANDING_COPY.footerDisclaimer}
           <button
             onClick={onOpenGuidelines}
             className="font-semibold text-accent underline underline-offset-2 hover:no-underline"
@@ -227,10 +204,20 @@ export function Landing({
           </button>
         </p>
         <p className="mt-2 font-mono text-xs">
-          Built with React + Node · Peer-to-peer WebRTC · No accounts, no data
-          stored · © {new Date().getFullYear()} ITMajdoor. All rights reserved.
+          {LANDING_COPY.footerCredit} · © {new Date().getFullYear()} ITMajdoor.
+          All rights reserved.
         </p>
       </footer>
+
+      {/* Domain picker — opens on Join, confirms with the chosen domain. */}
+      <DomainModal
+        open={domainOpen}
+        onClose={() => setDomainOpen(false)}
+        onConfirm={(domainId) => {
+          setDomainOpen(false);
+          onJoin(domainId);
+        }}
+      />
     </div>
   );
 }

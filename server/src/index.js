@@ -137,6 +137,16 @@ app.get("/ice-servers", async (_req, res) => {
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: corsOptions,
+  // Prefer WebSocket and skip the HTTP long-poll upgrade dance where possible:
+  // lower per-connection overhead and latency for our signaling/relay traffic.
+  transports: ["websocket", "polling"],
+  // Heartbeat: detect dead/ghost connections reasonably fast so stale users
+  // don't linger in the matchmaking queue, without being so aggressive that a
+  // brief mobile network blip drops a live call.
+  pingInterval: 25000,
+  pingTimeout: 20000,
+  // Drop oversized handshake payloads early (defensive against abuse).
+  maxHttpBufferSize: 1e6, // 1 MB
 });
 
 /**
@@ -169,9 +179,24 @@ function pairUp(socket, partnerId) {
   io.to(partnerId).emit("matched", { initiator: true });
 }
 
+// Sanitize the domain sent by a client: only accept known ids, else "all".
+const VALID_DOMAINS = new Set([
+  "all", "frontend", "backend", "fullstack", "mobile", "devops", "cloud",
+  "data", "qa", "security", "sde", "sre", "database", "embedded", "game",
+  "blockchain", "design", "pm", "support", "student", "other",
+]);
+function cleanDomain(domain) {
+  return typeof domain === "string" && VALID_DOMAINS.has(domain)
+    ? domain
+    : "all";
+}
+
 io.on("connection", (socket) => {
+  // Remember the socket's chosen domain across join/next.
+  let socketDomain = "all";
+
   const enqueue = () => {
-    const partnerId = matchmaker.join(socket.id);
+    const partnerId = matchmaker.join(socket.id, socketDomain);
     if (partnerId) {
       pairUp(socket, partnerId);
     } else {
@@ -179,14 +204,21 @@ io.on("connection", (socket) => {
     }
   };
 
-  socket.on("join", enqueue);
+  socket.on("join", ({ domain } = {}) => {
+    socketDomain = cleanDomain(domain);
+    enqueue();
+  });
 
-  socket.on("next", () => {
+  socket.on("next", ({ domain } = {}) => {
+    if (domain !== undefined) socketDomain = cleanDomain(domain);
     const exPartnerId = matchmaker.leave(socket.id);
     if (exPartnerId) {
       // Tell the ex-partner they were left, and put them back in the queue.
       io.to(exPartnerId).emit("partner:left");
-      const newPartnerForEx = matchmaker.join(exPartnerId);
+      const newPartnerForEx = matchmaker.join(
+        exPartnerId,
+        matchmaker.getDomain(exPartnerId)
+      );
       if (newPartnerForEx) {
         pairUp(io.sockets.sockets.get(exPartnerId), newPartnerForEx);
       } else {
@@ -203,7 +235,10 @@ io.on("connection", (socket) => {
     const exPartnerId = matchmaker.leave(socket.id);
     if (exPartnerId) {
       io.to(exPartnerId).emit("partner:left");
-      const newPartnerForEx = matchmaker.join(exPartnerId);
+      const newPartnerForEx = matchmaker.join(
+        exPartnerId,
+        matchmaker.getDomain(exPartnerId)
+      );
       if (newPartnerForEx) {
         pairUp(io.sockets.sockets.get(exPartnerId), newPartnerForEx);
       } else {
@@ -250,10 +285,14 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     const exPartnerId = matchmaker.leave(socket.id);
+    matchmaker.forget(socket.id);
     if (exPartnerId) {
       io.to(exPartnerId).emit("partner:left");
-      // Auto re-queue the partner who got left behind.
-      const newPartner = matchmaker.join(exPartnerId);
+      // Auto re-queue the partner who got left behind, keeping their domain.
+      const newPartner = matchmaker.join(
+        exPartnerId,
+        matchmaker.getDomain(exPartnerId)
+      );
       if (newPartner) {
         pairUp(io.sockets.sockets.get(exPartnerId), newPartner);
       } else {
@@ -262,6 +301,24 @@ io.on("connection", (socket) => {
     }
   });
 });
+
+// Periodic sweep: pair up users who waited past the fallback window without a
+// domain match, so nobody is stuck forever when few share their interest.
+setInterval(() => {
+  const pairs = matchmaker.sweep();
+  for (const [a, b] of pairs) {
+    const sockA = io.sockets.sockets.get(a);
+    if (sockA) {
+      // a becomes callee, b (already waiting longer) becomes initiator.
+      sockA.emit("matched", { initiator: false });
+      io.to(b).emit("matched", { initiator: true });
+    } else {
+      // a vanished; put b back so it isn't orphaned.
+      matchmaker.leave(b);
+      io.to(b).emit("waiting");
+    }
+  }
+}, 5000);
 
 // Bind to 0.0.0.0 so cloud hosts (Render/Railway/Fly) can route to the port.
 server.listen(PORT, "0.0.0.0", () => {

@@ -77,6 +77,9 @@ export function useMajdoorSession() {
   const hasJoinedRef = useRef(false);
   // ICE candidates can arrive before the remote description is set; buffer them.
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  // The domain chosen for interest matching ("all" = match anyone). Sent with
+  // every "join"/"next" so the server can pair on shared interest.
+  const domainRef = useRef<string>("all");
 
   // --- Media -------------------------------------------------------------
 
@@ -344,7 +347,7 @@ export function useMajdoorSession() {
     socket.on("connect", () => {
       if (wantJoinRef.current && !hasJoinedRef.current) {
         hasJoinedRef.current = true;
-        socket.emit("join");
+        socket.emit("join", { domain: domainRef.current });
       }
     });
 
@@ -466,35 +469,39 @@ export function useMajdoorSession() {
 
   // --- Public actions ----------------------------------------------------
 
-  const join = useCallback(async () => {
-    try {
-      await ensureLocalStream();
-    } catch {
-      // Media failed (permission denied, no device, insecure origin, etc.).
-      // mediaError is already set; return to idle so the user sees it and can
-      // retry, instead of hanging on the "Finding…" spinner forever.
-      setStatus("idle");
-      return;
-    }
-    // Fetch ICE servers (with any TURN credentials) from the backend before
-    // matchmaking, so they're ready when the peer connection is created.
-    iceServersRef.current = await fetchIceServers();
-    setStatus("waiting");
-    wantJoinRef.current = true;
-    const socket = socketRef.current;
-    // If the socket is already connected, join now; otherwise the socket's
-    // "connect" handler will emit "join" as soon as it connects.
-    if (socket?.connected && !hasJoinedRef.current) {
-      hasJoinedRef.current = true;
-      socket.emit("join");
-    }
-  }, [ensureLocalStream]);
+  const join = useCallback(
+    async (domain = "all") => {
+      domainRef.current = domain;
+      try {
+        await ensureLocalStream();
+      } catch {
+        // Media failed (permission denied, no device, insecure origin, etc.).
+        // mediaError is already set; return to idle so the user sees it and can
+        // retry, instead of hanging on the "Finding…" spinner forever.
+        setStatus("idle");
+        return;
+      }
+      // Fetch ICE servers (with any TURN credentials) from the backend before
+      // matchmaking, so they're ready when the peer connection is created.
+      iceServersRef.current = await fetchIceServers();
+      setStatus("waiting");
+      wantJoinRef.current = true;
+      const socket = socketRef.current;
+      // If the socket is already connected, join now; otherwise the socket's
+      // "connect" handler will emit "join" as soon as it connects.
+      if (socket?.connected && !hasJoinedRef.current) {
+        hasJoinedRef.current = true;
+        socket.emit("join", { domain: domainRef.current });
+      }
+    },
+    [ensureLocalStream]
+  );
 
   const next = useCallback(() => {
     teardownPeer();
     setMessages([]);
     setStatus("waiting");
-    socketRef.current?.emit("next");
+    socketRef.current?.emit("next", { domain: domainRef.current });
   }, [teardownPeer]);
 
   const stop = useCallback(() => {

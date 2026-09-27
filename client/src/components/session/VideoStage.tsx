@@ -1,6 +1,16 @@
-import type { RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { Loader2, VideoOff, MicOff, SwitchCamera } from "lucide-react";
 import { Galaxy } from "./Galaxy";
+
+/** Format elapsed seconds as m:ss (or h:mm:ss past an hour). */
+function formatDuration(totalSeconds: number): string {
+  const s = totalSeconds % 60;
+  const m = Math.floor(totalSeconds / 60) % 60;
+  const h = Math.floor(totalSeconds / 3600);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+import { STAGE_TEXT } from "../../constants/session";
 import type {
   Status,
   ConnectionQuality,
@@ -55,6 +65,28 @@ export function VideoStage({
   remoteVideoRef,
 }: VideoStageProps) {
   const q = QUALITY_META[quality];
+
+  // Live call timer: counts up while connected, resets on disconnect/new call.
+  const [callSeconds, setCallSeconds] = useState(0);
+  const startRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (status !== "connected") {
+      startRef.current = null;
+      setCallSeconds(0);
+      return;
+    }
+    // Anchor to a start timestamp so the count stays accurate even if a tick
+    // is delayed (e.g. background tab throttling).
+    startRef.current = Date.now();
+    setCallSeconds(0);
+    const id = setInterval(() => {
+      if (startRef.current != null) {
+        setCallSeconds(Math.floor((Date.now() - startRef.current) / 1000));
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [status]);
+
   // When swapped, YOUR video takes the main slot and the partner goes to PiP.
   const remoteBox = swapped ? PIP : FULL;
   const localBox = swapped ? FULL : PIP;
@@ -86,7 +118,9 @@ export function VideoStage({
             <div className="flex flex-col items-center gap-2">
               <VideoOff size={swapped ? 20 : 40} />
               {!swapped && (
-                <span className="text-sm font-medium">Camera off</span>
+                <span className="text-sm font-medium">
+                  {STAGE_TEXT.cameraOff}
+                </span>
               )}
             </div>
           </div>
@@ -117,6 +151,14 @@ export function VideoStage({
               />
             )}
             Partner
+            {status === "connected" && (
+              <>
+                <span className="text-white/30">·</span>
+                <span className="tabular-nums text-white/80">
+                  {formatDuration(callSeconds)}
+                </span>
+              </>
+            )}
           </span>
         )}
       </div>
@@ -136,10 +178,10 @@ export function VideoStage({
               )}
               <p className="px-6 text-lg font-semibold text-white/80 drop-shadow-lg">
                 {status === "waiting"
-                  ? "Finding another IT Majdoor across the universe…"
+                  ? STAGE_TEXT.waiting
                   : status === "connecting"
-                  ? "Connecting you two…"
-                  : "Not connected"}
+                  ? STAGE_TEXT.connecting
+                  : STAGE_TEXT.notConnected}
               </p>
             </div>
           </div>

@@ -1,7 +1,11 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { MessageSquare, SendHorizontal, Hand, X } from "lucide-react";
 import type { ChatMessage } from "../../constants/session";
-import { TYPING_IDLE_MS, MAX_MESSAGE_LENGTH } from "../../constants/session";
+import {
+  TYPING_IDLE_MS,
+  MAX_MESSAGE_LENGTH,
+  STARTER_MESSAGES,
+} from "../../constants/session";
 import { IconButton } from "../ui/IconButton";
 
 interface ChatProps {
@@ -17,13 +21,6 @@ interface ChatProps {
   /** Notify the partner that we started/stopped typing. */
   onTyping: (typing: boolean) => void;
 }
-
-/** Quick-start openers shown as tappable pills before the first message. */
-const STARTER_MESSAGES = [
-  "Hi Majdoor, how are you? 👋",
-  "Which stack are you on these days? 💻",
-  "Rough sprint or chill week? 😅",
-];
 
 /** Render an epoch-millis timestamp as a short local time, e.g. "6:05 PM". */
 function formatTime(ts: number): string {

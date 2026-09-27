@@ -28,11 +28,14 @@ function Loader() {
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const [view, setView] = useState<View>("landing");
+  // Domain chosen in the Join modal, passed to the session for matchmaking.
+  const [domain, setDomain] = useState<string>("all");
 
   if (view === "session") {
     return (
       <Suspense fallback={<Loader />}>
         <Session
+          domain={domain}
           theme={theme}
           onToggleTheme={toggleTheme}
           onExit={() => setView("landing")}
@@ -55,7 +58,10 @@ export default function App() {
 
   return (
     <Landing
-      onJoin={() => setView("session")}
+      onJoin={(domainId) => {
+        setDomain(domainId);
+        setView("session");
+      }}
       theme={theme}
       onToggleTheme={toggleTheme}
       onOpenGuidelines={() => setView("guidelines")}
