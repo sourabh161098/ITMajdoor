@@ -87,7 +87,7 @@ export function Chat({
   return (
     <div
       aria-hidden={!open}
-      className={`z-20 flex min-h-0 flex-col border-[var(--border)] bg-[var(--surface)] shadow-2xl
+      className={`z-20 flex min-h-0 flex-col border-[var(--border)] bg-[var(--surface)] shadow-2xl will-change-transform
         absolute inset-y-0 right-0 w-full transition-transform duration-300 ease-out
         sm:static sm:h-full sm:shrink-0 sm:border-l sm:shadow-none sm:transition-[width]
         ${

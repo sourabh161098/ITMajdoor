@@ -107,9 +107,13 @@ export function Session({ theme, onToggleTheme, onExit }: SessionProps) {
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-[var(--bg)] text-[var(--text)]">
       {/* Top bar */}
       <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-5 py-3">
-        <span className="flex items-center gap-2 text-xl font-extrabold tracking-tight">
-          <Laptop className="h-5 w-5 text-accent" strokeWidth={2.4} />
-          IT<span className="text-accent">Majdoor</span>
+        <span className="flex items-center gap-2.5 text-xl font-extrabold tracking-tight">
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-accent text-white shadow-sm shadow-accent/30">
+            <Laptop className="h-5 w-5" strokeWidth={2.4} />
+          </span>
+          <span>
+            IT<span className="text-accent">Majdoor</span>
+          </span>
         </span>
         <div className="flex items-center gap-3">
           <span

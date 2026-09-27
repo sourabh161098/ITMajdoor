@@ -175,10 +175,14 @@ export function Guidelines({ onBack, theme, onToggleTheme }: GuidelinesProps) {
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/90 px-6 py-4 backdrop-blur">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-2xl font-extrabold tracking-tight transition hover:opacity-80"
+          className="flex items-center gap-2.5 text-xl font-extrabold tracking-tight transition hover:opacity-80"
         >
-          <Laptop className="h-6 w-6 text-accent" strokeWidth={2.4} />
-          IT<span className="text-accent">Majdoor</span>
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-accent text-white shadow-sm shadow-accent/30">
+            <Laptop className="h-5 w-5" strokeWidth={2.4} />
+          </span>
+          <span>
+            IT<span className="text-accent">Majdoor</span>
+          </span>
         </button>
         <div className="flex items-center gap-2">
           <button
